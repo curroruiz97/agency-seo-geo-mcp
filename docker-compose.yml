@@ -1,0 +1,15 @@
+services:
+  mcp:
+    build: .
+    container_name: agency-seo-geo-mcp
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - agency_net
+
+networks:
+  agency_net:
+    driver: bridge
