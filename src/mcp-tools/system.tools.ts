@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AppContext } from "../app/appContext.js";
 import { SERVICE_NAME, SERVICE_VERSION } from "../config/constants.js";
+import { isDatabaseUrlConfigured } from "../config/database.js";
 import { getHealthPayload } from "../server/health.js";
 import { jsonToolResponse } from "./response.js";
 
@@ -26,7 +27,7 @@ export function registerSystemTools(server: McpServer, context: AppContext) {
         publicBaseUrl: context.config.PUBLIC_BASE_URL,
         mcpEndpoint: `${context.config.PUBLIC_BASE_URL.replace(/\/$/, "")}/mcp`,
         authentication: context.config.MCP_BEARER_TOKEN ? "bearer_token_enabled" : "not_configured",
-        database: context.config.DATABASE_URL ? "configured" : "not_configured"
+        database: isDatabaseUrlConfigured(context.config.DATABASE_URL) ? "configured" : "not_configured"
       })
   );
 }

@@ -1,6 +1,6 @@
 export type ProjectStatus = "active" | "paused";
 export type ProjectStatusFilter = ProjectStatus | "all";
-export type PermissionLevel = "read_only" | "proposal_only";
+export type PermissionLevel = "read_only" | "proposal_only" | "approved_writes";
 
 export interface ProjectIntegrationStatus {
   wordpress: "mock" | "not_configured" | "connected" | "error";

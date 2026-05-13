@@ -17,7 +17,7 @@ READ_ONLY_MODE=true
 REQUIRE_MCP_AUTH=true
 MCP_BEARER_TOKEN=<long-random-token>
 DATABASE_URL=<supabase-pooler-url>
-DIRECT_DATABASE_URL=<supabase-direct-url-for-migrations>
+DIRECT_URL=<supabase-direct-url-for-migrations>
 ```
 
 ## Deploy

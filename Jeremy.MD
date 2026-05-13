@@ -189,13 +189,40 @@ Recomendacion:
 - usar el pooler de Supabase si el VPS solo tiene IPv4,
 - o la conexion directa si tu VPS soporta IPv6 correctamente.
 
-### DIRECT_DATABASE_URL
+### DIRECT_URL
 
 Esta se usa para migraciones de Prisma.
 
 Si no tienes claro cual usar, empieza con el pooler para `DATABASE_URL` y revisa la documentacion de Supabase para la directa.
 
 ## 8. Crear el archivo .env local
+
+Ya he dejado creado un archivo local:
+
+```text
+C:\Users\Usuario\Desktop\MCP Avenue\.env
+```
+
+Ese archivo NO se sube a GitHub. Esta ignorado por seguridad.
+
+Dentro veras estas dos lineas:
+
+```env
+DATABASE_URL=postgresql://postgres.bfidzlbmkpegnndijosw:REPLACE_WITH_SUPABASE_DB_PASSWORD@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+DIRECT_URL=postgresql://postgres.bfidzlbmkpegnndijosw:REPLACE_WITH_SUPABASE_DB_PASSWORD@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
+```
+
+Solo tienes que sustituir:
+
+```text
+REPLACE_WITH_SUPABASE_DB_PASSWORD
+```
+
+por la password real de la base de datos de Supabase.
+
+No borres el resto de la URL.
+No pongas espacios.
+No subas ese archivo a GitHub.
 
 En local, copia:
 
@@ -217,7 +244,7 @@ REQUIRE_MCP_AUTH=false
 MCP_BEARER_TOKEN=
 LOG_LEVEL=info
 DATABASE_URL=postgresql://...
-DIRECT_DATABASE_URL=postgresql://...
+DIRECT_URL=postgresql://...
 ```
 
 Importante:
@@ -227,7 +254,7 @@ Importante:
 
 ## 9. Generar Prisma Client
 
-Cuando hayas puesto `DATABASE_URL` y `DIRECT_DATABASE_URL`, ejecuta:
+Cuando hayas puesto `DATABASE_URL` y `DIRECT_URL`, ejecuta:
 
 ```bash
 npm run db:generate
@@ -369,7 +396,7 @@ REQUIRE_MCP_AUTH=true
 MCP_BEARER_TOKEN=un-token-muy-largo-y-aleatorio
 LOG_LEVEL=info
 DATABASE_URL=postgresql://...
-DIRECT_DATABASE_URL=postgresql://...
+DIRECT_URL=postgresql://...
 ```
 
 Generar token largo:
@@ -531,7 +558,7 @@ Crear proyecto Supabase Free.
 
 ### Paso 2
 
-Configurar `.env` local con `DATABASE_URL` y `DIRECT_DATABASE_URL`.
+Configurar `.env` local con `DATABASE_URL` y `DIRECT_URL`.
 
 ### Paso 3
 

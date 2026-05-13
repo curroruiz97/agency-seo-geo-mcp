@@ -58,7 +58,7 @@ REQUIRE_MCP_AUTH=true
 MCP_BEARER_TOKEN=
 LOG_LEVEL=info
 DATABASE_URL=
-DIRECT_DATABASE_URL=
+DIRECT_URL=
 ```
 
 Si `REQUIRE_MCP_AUTH=true`, el servidor no arranca sin `MCP_BEARER_TOKEN`.
@@ -70,7 +70,7 @@ Empieza con Supabase Free para desarrollo y piloto. Antes de usar datos reales d
 Usa:
 
 - `DATABASE_URL`: connection string del pooler de Supabase para la app.
-- `DIRECT_DATABASE_URL`: connection string directa para migraciones cuando este disponible.
+- `DIRECT_URL`: connection string directa para migraciones cuando este disponible. Es el nombre que muestra Supabase para Prisma.
 
 Generar Prisma Client:
 
@@ -82,6 +82,12 @@ Aplicar migraciones en despliegue:
 
 ```bash
 npm run db:deploy
+```
+
+Insertar datos piloto despues de aplicar migraciones:
+
+```bash
+npm run db:seed
 ```
 
 ## Despliegue VPS

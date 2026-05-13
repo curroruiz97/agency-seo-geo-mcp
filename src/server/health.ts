@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config/env.js";
 import { SERVICE_NAME, SERVICE_VERSION } from "../config/constants.js";
+import { isDatabaseUrlConfigured } from "../config/database.js";
 
 export interface HealthPayload {
   status: "ok";
@@ -28,7 +29,7 @@ export interface ReadinessPayload {
 export function getReadinessPayload(config: Pick<AppConfig, "DATABASE_URL">): ReadinessPayload {
   return {
     status: "ready",
-    database: config.DATABASE_URL ? "configured" : "not_configured",
+    database: isDatabaseUrlConfigured(config.DATABASE_URL) ? "configured" : "not_configured",
     timestamp: new Date().toISOString()
   };
 }

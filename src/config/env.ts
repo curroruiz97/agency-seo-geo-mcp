@@ -25,6 +25,7 @@ const envSchema = z.object({
   MCP_BEARER_TOKEN: z.string().optional().default(""),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.string().optional().default(""),
+  DIRECT_URL: z.string().optional().default(""),
   DIRECT_DATABASE_URL: z.string().optional().default("")
 });
 

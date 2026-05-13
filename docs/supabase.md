@@ -15,7 +15,7 @@ DATABASE_URL="postgresql://..."
 For Prisma migrations, use a direct URL when available:
 
 ```env
-DIRECT_DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
 ```
 
 On IPv4-only environments, use Supabase's pooler unless an IPv4 add-on is enabled.
