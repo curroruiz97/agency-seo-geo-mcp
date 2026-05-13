@@ -1,9 +1,10 @@
 import { config } from "./config/env.js";
+import { createAppContext } from "./app/appContext.js";
 import { createHttpServer } from "./server/http.js";
-import { createLogger } from "./utils/logger.js";
 
-const logger = createLogger(config);
-const app = createHttpServer(config);
+const context = createAppContext(config);
+const app = createHttpServer(context);
+const logger = context.logger;
 
 const server = app.listen(config.PORT, "0.0.0.0", () => {
   logger.info(

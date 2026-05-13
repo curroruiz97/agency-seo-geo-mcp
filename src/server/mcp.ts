@@ -1,23 +1,23 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Request, Response } from "express";
-import type { AppConfig } from "../config/env.js";
+import type { AppContext } from "../app/appContext.js";
 import { SERVICE_NAME, SERVICE_VERSION } from "../config/constants.js";
 import { registerTools } from "../mcp-tools/register.js";
 
-export function createMcpServer(config: AppConfig) {
+export function createMcpServer(context: AppContext) {
   const server = new McpServer({
     name: SERVICE_NAME,
     version: SERVICE_VERSION
   });
 
-  registerTools(server, config);
+  registerTools(server, context);
 
   return server;
 }
 
-export async function handleMcpRequest(config: AppConfig, req: Request, res: Response) {
-  const server = createMcpServer(config);
+export async function handleMcpRequest(context: AppContext, req: Request, res: Response) {
+  const server = createMcpServer(context);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined
   });

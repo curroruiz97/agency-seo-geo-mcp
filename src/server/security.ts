@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import type { AppConfig } from "../config/env.js";
 
@@ -27,7 +28,7 @@ export function requireMcpBearerToken(config: Pick<AppConfig, "MCP_BEARER_TOKEN"
     const expected = `Bearer ${config.MCP_BEARER_TOKEN}`;
     const actual = req.header("authorization");
 
-    if (actual === expected) {
+    if (actual && safeEqual(actual, expected)) {
       next();
       return;
     }
@@ -38,4 +39,15 @@ export function requireMcpBearerToken(config: Pick<AppConfig, "MCP_BEARER_TOKEN"
       message: "A valid bearer token is required for this MCP endpoint."
     });
   };
+}
+
+function safeEqual(actual: string, expected: string) {
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+
+  if (actualBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(actualBuffer, expectedBuffer);
 }

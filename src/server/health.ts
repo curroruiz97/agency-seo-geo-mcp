@@ -18,3 +18,17 @@ export function getHealthPayload(config: Pick<AppConfig, "READ_ONLY_MODE">): Hea
     timestamp: new Date().toISOString()
   };
 }
+
+export interface ReadinessPayload {
+  status: "ready";
+  database: "configured" | "not_configured";
+  timestamp: string;
+}
+
+export function getReadinessPayload(config: Pick<AppConfig, "DATABASE_URL">): ReadinessPayload {
+  return {
+    status: "ready",
+    database: config.DATABASE_URL ? "configured" : "not_configured",
+    timestamp: new Date().toISOString()
+  };
+}

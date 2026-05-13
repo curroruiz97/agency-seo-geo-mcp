@@ -18,14 +18,26 @@ const envSchema = z.object({
         .map((origin) => origin.trim())
         .filter(Boolean)
     ),
+  REQUIRE_MCP_AUTH: z
+    .string()
+    .default("false")
+    .transform((value) => value.toLowerCase() === "true"),
   MCP_BEARER_TOKEN: z.string().optional().default(""),
-  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info")
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+  DATABASE_URL: z.string().optional().default(""),
+  DIRECT_DATABASE_URL: z.string().optional().default("")
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
-  return envSchema.parse(source);
+  const config = envSchema.parse(source);
+
+  if (config.REQUIRE_MCP_AUTH && !config.MCP_BEARER_TOKEN) {
+    throw new Error("MCP_BEARER_TOKEN is required when REQUIRE_MCP_AUTH=true.");
+  }
+
+  return config;
 }
 
 export const config = loadConfig();

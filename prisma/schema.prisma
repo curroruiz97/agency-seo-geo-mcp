@@ -1,0 +1,256 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum ClientStatus {
+  active
+  paused
+  archived
+}
+
+enum ProjectStatus {
+  active
+  paused
+  archived
+}
+
+enum PermissionLevel {
+  read_only
+  proposal_only
+  approved_writes
+}
+
+enum CredentialType {
+  wordpress_application_password
+  wordpress_oauth
+  rankmath_bridge_token
+  seranking_token
+}
+
+enum OpportunityStatus {
+  open
+  proposed
+  in_progress
+  closed
+  dismissed
+}
+
+enum ChangeRequestStatus {
+  proposed
+  approved
+  applied
+  verified
+  rejected
+  failed
+  rolled_back
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+  critical
+}
+
+model Client {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String
+  companyName  String?   @map("company_name")
+  contactEmail String?   @map("contact_email")
+  status       ClientStatus @default(active)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  projects Project[]
+  reports  Report[]
+
+  @@map("clients")
+}
+
+model Project {
+  id                String          @id @default(uuid()) @db.Uuid
+  clientId          String          @map("client_id") @db.Uuid
+  name              String
+  domain            String
+  wordpressUrl      String          @map("wordpress_url")
+  wordpressStagingUrl String?       @map("wordpress_staging_url")
+  serankingProjectId String?        @map("seranking_project_id")
+  language          String          @default("es")
+  targetCountry     String?         @map("target_country")
+  targetCity        String?         @map("target_city")
+  sector            String?
+  businessType      String?         @map("business_type")
+  seoPlugin         String          @default("rank_math_pro") @map("seo_plugin")
+  builder           String          @default("elementor")
+  permissionLevel   PermissionLevel @default(read_only) @map("permission_level")
+  status            ProjectStatus   @default(active)
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  client         Client              @relation(fields: [clientId], references: [id])
+  capabilities   ProjectCapability?
+  credentials    ProjectCredential[]
+  opportunities  Opportunity[]
+  changeRequests ChangeRequest[]
+  actionLogs     ActionLog[]
+  reports        Report[]
+
+  @@unique([domain])
+  @@index([clientId])
+  @@index([status])
+  @@map("projects")
+}
+
+model ProjectCapability {
+  id                                String   @id @default(uuid()) @db.Uuid
+  projectId                         String   @unique @map("project_id") @db.Uuid
+  canReadWordpress                  Boolean  @default(true) @map("can_read_wordpress")
+  canCreateDrafts                   Boolean  @default(false) @map("can_create_drafts")
+  canUpdateRankmath                 Boolean  @default(false) @map("can_update_rankmath")
+  canUpdateElementor                Boolean  @default(false) @map("can_update_elementor")
+  canPublish                        Boolean  @default(false) @map("can_publish")
+  canChangeSlugs                    Boolean  @default(false) @map("can_change_slugs")
+  canChangeCanonical                Boolean  @default(false) @map("can_change_canonical")
+  canChangeRobots                   Boolean  @default(false) @map("can_change_robots")
+  requiresHumanApproval             Boolean  @default(true) @map("requires_human_approval")
+  requiresDoubleApprovalForHighRisk Boolean  @default(true) @map("requires_double_approval_for_high_risk")
+  createdAt                         DateTime @default(now()) @map("created_at")
+  updatedAt                         DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_capabilities")
+}
+
+model ProjectCredential {
+  id               String         @id @default(uuid()) @db.Uuid
+  projectId        String         @map("project_id") @db.Uuid
+  credentialType   CredentialType @map("credential_type")
+  label            String?
+  encryptedPayload String         @map("encrypted_payload")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  lastUsedAt       DateTime?      @map("last_used_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([credentialType])
+  @@map("project_credentials")
+}
+
+model Opportunity {
+  id                   String            @id @default(uuid()) @db.Uuid
+  projectId            String            @map("project_id") @db.Uuid
+  source               String?
+  url                  String?
+  keyword              String?
+  opportunityType      String            @map("opportunity_type")
+  currentPosition      Int?              @map("current_position")
+  previousPosition     Int?              @map("previous_position")
+  searchVolume         Int?              @map("search_volume")
+  intent               String?
+  impactScore          Decimal?          @map("impact_score")
+  easeScore            Decimal?          @map("ease_score")
+  commercialValueScore Decimal?          @map("commercial_value_score")
+  urgencyScore         Decimal?          @map("urgency_score")
+  confidenceScore      Decimal?          @map("confidence_score")
+  riskScore            Decimal?          @map("risk_score")
+  priorityScore        Decimal?          @map("priority_score")
+  summary              String
+  recommendedAction    String?           @map("recommended_action")
+  status               OpportunityStatus @default(open)
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changeRequests ChangeRequest[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([priorityScore])
+  @@map("opportunities")
+}
+
+model ChangeRequest {
+  id               String              @id @default(uuid()) @db.Uuid
+  projectId        String              @map("project_id") @db.Uuid
+  opportunityId    String?             @map("opportunity_id") @db.Uuid
+  url              String?
+  targetEntityType String              @map("target_entity_type")
+  targetEntityId   String?             @map("target_entity_id")
+  changeType       String              @map("change_type")
+  riskLevel        RiskLevel           @map("risk_level")
+  status           ChangeRequestStatus @default(proposed)
+  beforePayload    Json?               @map("before_payload")
+  afterPayload     Json?               @map("after_payload")
+  diffPayload      Json?               @map("diff_payload")
+  reason           String?
+  expectedImpact   String?             @map("expected_impact")
+  requiresApproval Boolean             @default(true) @map("requires_approval")
+  approvedBy       String?             @map("approved_by")
+  approvedAt       DateTime?           @map("approved_at")
+  appliedAt        DateTime?           @map("applied_at")
+  verifiedAt       DateTime?           @map("verified_at")
+  rollbackPayload  Json?               @map("rollback_payload")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  actionLogs  ActionLog[]
+
+  @@index([projectId])
+  @@index([opportunityId])
+  @@index([status])
+  @@map("change_requests")
+}
+
+model ActionLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String?  @map("project_id") @db.Uuid
+  changeRequestId String?  @map("change_request_id") @db.Uuid
+  toolName        String?  @map("tool_name")
+  actionType      String   @map("action_type")
+  status          String
+  inputPayload    Json?    @map("input_payload")
+  outputPayload   Json?    @map("output_payload")
+  errorMessage    String?  @map("error_message")
+  createdBy       String?  @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  project       Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  changeRequest ChangeRequest? @relation(fields: [changeRequestId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([changeRequestId])
+  @@index([toolName])
+  @@index([createdAt])
+  @@map("action_logs")
+}
+
+model Report {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String?  @map("project_id") @db.Uuid
+  clientId        String?  @map("client_id") @db.Uuid
+  reportType      String   @map("report_type")
+  periodStart     DateTime @map("period_start") @db.Date
+  periodEnd       DateTime @map("period_end") @db.Date
+  contentMarkdown String   @map("content_markdown")
+  metricsPayload  Json?    @map("metrics_payload")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  client  Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([clientId])
+  @@index([reportType])
+  @@map("reports")
+}

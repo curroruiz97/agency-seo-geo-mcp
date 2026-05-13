@@ -1,12 +1,14 @@
 # Agency SEO/GEO MCP
 
-Servidor MCP central para una agencia SEO/GEO. Esta primera versión implementa solo el Sprint 1: infraestructura segura, read-only y sin datos reales.
+Servidor MCP central para una agencia SEO/GEO. La arquitectura recomendada usa el VPS IONOS para ejecutar el MCP y Supabase Cloud como Postgres gestionado.
 
-## Qué Incluye
+## Que Incluye
 
 - Express + TypeScript + Node 22.
 - MCP remoto en `/mcp` usando `@modelcontextprotocol/sdk` estable.
-- Healthcheck público en `/health`.
+- Healthcheck publico en `/health`.
+- Readiness endpoint en `/ready`.
+- Version endpoint en `/version`.
 - Tools mock:
   - `ping`
   - `list_projects`
@@ -14,7 +16,9 @@ Servidor MCP central para una agencia SEO/GEO. Esta primera versión implementa 
 - Docker Compose preparado para VPS IONOS.
 - Caddy preparado para HTTPS en `mcp.tudominio.com`.
 - `READ_ONLY_MODE=true` por defecto.
-- Validación de `Origin` y bearer token opcional para `/mcp`.
+- Validacion de `Origin`, Helmet, rate limit y bearer token opcional para `/mcp`.
+- Prisma preparado para Supabase Postgres.
+- CI con GitHub Actions.
 
 ## Desarrollo Local
 
@@ -28,14 +32,18 @@ Healthcheck:
 
 ```bash
 curl http://localhost:3000/health
+curl http://localhost:3000/ready
+curl http://localhost:3000/version
 ```
 
 Scripts:
 
 ```bash
+npm run lint
 npm run typecheck
 npm test
 npm run build
+npm run check
 ```
 
 ## Variables De Entorno
@@ -46,28 +54,53 @@ PORT=3000
 PUBLIC_BASE_URL=https://mcp.tudominio.com
 READ_ONLY_MODE=true
 ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com
+REQUIRE_MCP_AUTH=true
 MCP_BEARER_TOKEN=
 LOG_LEVEL=info
+DATABASE_URL=
+DIRECT_DATABASE_URL=
 ```
 
-`MCP_BEARER_TOKEN` vacío deja `/mcp` sin bearer token. En VPS público conviene definirlo.
+Si `REQUIRE_MCP_AUTH=true`, el servidor no arranca sin `MCP_BEARER_TOKEN`.
+
+## Supabase
+
+Empieza con Supabase Free para desarrollo y piloto. Antes de usar datos reales de clientes en produccion, sube a Pro para evitar pausas y tener mejores backups.
+
+Usa:
+
+- `DATABASE_URL`: connection string del pooler de Supabase para la app.
+- `DIRECT_DATABASE_URL`: connection string directa para migraciones cuando este disponible.
+
+Generar Prisma Client:
+
+```bash
+npm run db:generate
+```
+
+Aplicar migraciones en despliegue:
+
+```bash
+npm run db:deploy
+```
 
 ## Despliegue VPS
 
-1. Copia el repo al VPS.
-2. Crea `.env` desde `.env.example`.
-3. Cambia `PUBLIC_BASE_URL` y el dominio en `Caddyfile`.
-4. Levanta el servicio:
+1. Crea `.env` desde `.env.example`.
+2. Cambia `PUBLIC_BASE_URL` y el dominio en `Caddyfile`.
+3. Define `MCP_BEARER_TOKEN` con un token largo.
+4. Define `DATABASE_URL` con Supabase cuando empiece Sprint 2 real.
+5. Levanta el servicio:
 
 ```bash
 docker compose up -d --build
 ```
 
-5. Configura Caddy con el `Caddyfile` del repo o integra el bloque en tu Caddy existente.
 6. Comprueba:
 
 ```bash
 curl https://mcp.tudominio.com/health
+curl https://mcp.tudominio.com/ready
 ```
 
 ## Conectar En ChatGPT
@@ -80,14 +113,14 @@ curl https://mcp.tudominio.com/health
 https://mcp.tudominio.com/mcp
 ```
 
-4. ChatGPT debería detectar `ping`, `list_projects` y `get_server_status`.
+4. ChatGPT deberia detectar `ping`, `list_projects` y `get_server_status`.
 5. Si cambias tools o descripciones, refresca metadata del connector.
 
-## Límites Del Sprint 1
+## Limites Actuales
 
-- No hay base de datos.
+- Hay schema Prisma, pero aun no hay migracion aplicada ni repositorio DB activo.
 - No hay credenciales reales.
-- No hay integración WordPress, SE Ranking, Rank Math ni Elementor.
+- No hay integracion WordPress, SE Ranking, Rank Math ni Elementor.
 - No hay acciones de escritura.
 
-La siguiente fase añade PostgreSQL, Prisma y Project Registry cifrado.
+La siguiente fase cambia `list_projects` de mock a Supabase Postgres.
