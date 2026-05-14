@@ -19,7 +19,8 @@ export function createMcpServer(context: AppContext) {
 export async function handleMcpRequest(context: AppContext, req: Request, res: Response) {
   const server = createMcpServer(context);
   const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
   });
 
   res.on("close", () => {
