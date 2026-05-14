@@ -6,9 +6,10 @@ const context = createAppContext(config);
 const app = createHttpServer(context);
 const logger = context.logger;
 
-const server = app.listen(config.PORT, "0.0.0.0", () => {
+const server = app.listen(config.PORT, config.HOST, () => {
   logger.info(
     {
+      host: config.HOST,
       port: config.PORT,
       publicBaseUrl: config.PUBLIC_BASE_URL,
       readOnly: config.READ_ONLY_MODE

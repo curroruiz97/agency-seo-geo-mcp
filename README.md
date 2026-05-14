@@ -50,8 +50,9 @@ npm run check
 
 ```env
 NODE_ENV=production
+HOST=127.0.0.1
 PORT=3000
-PUBLIC_BASE_URL=https://mcp.tudominio.com
+PUBLIC_BASE_URL=https://lava.avenuemedia.io
 READ_ONLY_MODE=true
 ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com
 REQUIRE_MCP_AUTH=true
@@ -101,6 +102,8 @@ npm run db:seed
 ```bash
 docker compose up -d --build
 ```
+
+Si despliegas con Plesk/nginx + PM2 en vez de Docker, usa `HOST=127.0.0.1` para que Node no quede expuesto publicamente en el puerto 3000.
 
 6. Comprueba:
 

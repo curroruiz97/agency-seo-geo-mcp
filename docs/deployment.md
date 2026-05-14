@@ -8,6 +8,8 @@
 - Supabase project exists.
 - `.env` contains production values.
 
+If deploying under Plesk/nginx + PM2, use `docs/plesk-pm2.md` instead of the Docker/Caddy flow.
+
 ## Required Production Environment
 
 ```env
