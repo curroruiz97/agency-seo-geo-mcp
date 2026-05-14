@@ -83,6 +83,7 @@ PUBLIC_BASE_URL=https://lava.avenuemedia.io
 READ_ONLY_MODE=true
 ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com
 REQUIRE_MCP_AUTH=false
+ALLOW_PUBLIC_MCP_DISCOVERY=true
 MCP_BEARER_TOKEN=
 LOG_LEVEL=info
 DATABASE_URL=postgresql://postgres.bfidzlbmkpegnndijosw:<PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true
@@ -236,6 +237,8 @@ Si el comando anterior devuelve 39 tools pero ChatGPT Builder sigue diciendo que
 https://lava.avenuemedia.io/mcp
 ```
 
+Si hay bearer token en el MCP, deja `ALLOW_PUBLIC_MCP_DISCOVERY=true`. Asi ChatGPT puede leer el catalogo de acciones (`initialize` y `tools/list`) aunque las ejecuciones reales (`tools/call`) sigan protegidas por `MCP_BEARER_TOKEN`.
+
 Despues probar `list_projects`. Debe devolver los 3 proyectos seed si Supabase esta cargado.
 
 Tambien puedes probar una escritura segura como `update_post`. No debe tocar WordPress. Debe crear una propuesta interna/change request o indicar por que no puede persistirla.
@@ -245,7 +248,7 @@ Tambien puedes probar una escritura segura como `update_post`. No debe tocar Wor
 Solo conectar ChatGPT cuando:
 
 - `https://lava.avenuemedia.io/health` funciona.
-- `https://lava.avenuemedia.io/version` devuelve `0.3.2`.
+- `https://lava.avenuemedia.io/version` devuelve `0.3.3`.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
 - `https://lava.avenuemedia.io/mcp` lista 39 tools.
 - `http://212.227.90.205:3000` no responde desde fuera.

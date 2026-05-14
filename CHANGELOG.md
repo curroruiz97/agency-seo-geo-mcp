@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+- Allow unauthenticated MCP discovery requests (`initialize`, `notifications/initialized`, `tools/list`) when `ALLOW_PUBLIC_MCP_DISCOVERY=true`.
+- Keep real MCP tool execution (`tools/call`) protected by `MCP_BEARER_TOKEN`.
+- Document the Builder compatibility setting for protected MCP endpoints.
+
 ## 0.3.2
 
 - Add `GET /` as a safe service directory for browser visits to the MCP domain.

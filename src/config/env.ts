@@ -23,6 +23,10 @@ const envSchema = z.object({
     .string()
     .default("false")
     .transform((value) => value.toLowerCase() === "true"),
+  ALLOW_PUBLIC_MCP_DISCOVERY: z
+    .string()
+    .default("true")
+    .transform((value) => value.toLowerCase() === "true"),
   MCP_BEARER_TOKEN: z.string().optional().default(""),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.string().optional().default(""),

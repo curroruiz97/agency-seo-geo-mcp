@@ -10,12 +10,14 @@ describe("environment config", () => {
       READ_ONLY_MODE: "true",
       ALLOWED_ORIGINS: "https://chatgpt.com, https://chat.openai.com",
       REQUIRE_MCP_AUTH: "false",
+      ALLOW_PUBLIC_MCP_DISCOVERY: "true",
       LOG_LEVEL: "silent"
     });
 
     expect(config.PORT).toBe(3010);
     expect(config.READ_ONLY_MODE).toBe(true);
     expect(config.REQUIRE_MCP_AUTH).toBe(false);
+    expect(config.ALLOW_PUBLIC_MCP_DISCOVERY).toBe(true);
     expect(config.ALLOWED_ORIGINS).toEqual(["https://chatgpt.com", "https://chat.openai.com"]);
   });
 

@@ -18,9 +18,16 @@ export function validateOrigin(config: Pick<AppConfig, "ALLOWED_ORIGINS">) {
   };
 }
 
-export function requireMcpBearerToken(config: Pick<AppConfig, "MCP_BEARER_TOKEN">) {
+const publicDiscoveryMethods = new Set(["initialize", "notifications/initialized", "tools/list"]);
+
+export function requireMcpBearerToken(config: Pick<AppConfig, "MCP_BEARER_TOKEN" | "ALLOW_PUBLIC_MCP_DISCOVERY">) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!config.MCP_BEARER_TOKEN) {
+      next();
+      return;
+    }
+
+    if (config.ALLOW_PUBLIC_MCP_DISCOVERY && isPublicMcpDiscoveryRequest(req)) {
       next();
       return;
     }
@@ -39,6 +46,24 @@ export function requireMcpBearerToken(config: Pick<AppConfig, "MCP_BEARER_TOKEN"
       message: "A valid bearer token is required for this MCP endpoint."
     });
   };
+}
+
+function isPublicMcpDiscoveryRequest(req: Request) {
+  if (req.method !== "POST") {
+    return false;
+  }
+
+  const body = req.body as unknown;
+  const messages = Array.isArray(body) ? body : [body];
+
+  return messages.every(
+    (message) =>
+      message &&
+      typeof message === "object" &&
+      "method" in message &&
+      typeof message.method === "string" &&
+      publicDiscoveryMethods.has(message.method)
+  );
 }
 
 function safeEqual(actual: string, expected: string) {

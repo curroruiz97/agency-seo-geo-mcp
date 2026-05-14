@@ -33,7 +33,7 @@ Completado:
 - GitHub Actions CI.
 - Hardening basico: Helmet, rate limit, request id, errores saneados, `HOST`.
 - Despliegue actual en `https://lava.avenuemedia.io`.
-- Version actual `0.3.2`.
+- Version actual `0.3.3`.
 - Superficie MCP amplia de 39 acciones para que ChatGPT detecte el conector:
   - WordPress
   - Rank Math
@@ -57,6 +57,7 @@ Pendiente inmediato:
 - No guardar credenciales en claro.
 - No devolver credenciales por MCP.
 - No conectar datos reales sin autenticacion compatible.
+- Permitir descubrimiento publico MCP (`initialize` y `tools/list`) cuando `ALLOW_PUBLIC_MCP_DISCOVERY=true`, manteniendo `tools/call` protegido con bearer token.
 - No aplicar cambios WordPress/Rank Math/Elementor hasta fases posteriores.
 - Elementor es solo lectura hasta que exista staging, diff y verificacion.
 
@@ -87,7 +88,7 @@ Criterios de aceptacion:
 
 - `https://lava.avenuemedia.io/health` OK.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
-- `https://lava.avenuemedia.io/version` devuelve `0.3.2`.
+- `https://lava.avenuemedia.io/version` devuelve `0.3.3`.
 - `https://lava.avenuemedia.io/mcp` lista 39 tools MCP con annotations completas.
 - `http://212.227.90.205:3000` no es accesible desde fuera.
 
