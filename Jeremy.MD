@@ -245,7 +245,7 @@ Tambien puedes probar una escritura segura como `update_post`. No debe tocar Wor
 Solo conectar ChatGPT cuando:
 
 - `https://lava.avenuemedia.io/health` funciona.
-- `https://lava.avenuemedia.io/version` devuelve `0.3.1`.
+- `https://lava.avenuemedia.io/version` devuelve `0.3.2`.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
 - `https://lava.avenuemedia.io/mcp` lista 39 tools.
 - `http://212.227.90.205:3000` no responde desde fuera.

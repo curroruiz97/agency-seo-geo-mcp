@@ -20,6 +20,50 @@ export function getHealthPayload(config: Pick<AppConfig, "READ_ONLY_MODE">): Hea
   };
 }
 
+export interface RootPayload {
+  status: "ok";
+  service: string;
+  version: string;
+  message: string;
+  readOnly: boolean;
+  endpoints: {
+    health: string;
+    ready: string;
+    version: string;
+    mcp: string;
+  };
+  mcp: {
+    transport: "streamable_http";
+    method: "JSON-RPC 2.0";
+    discovery: "tools/list";
+  };
+  timestamp: string;
+}
+
+export function getRootPayload(config: Pick<AppConfig, "PUBLIC_BASE_URL" | "READ_ONLY_MODE">): RootPayload {
+  const baseUrl = config.PUBLIC_BASE_URL.replace(/\/$/, "");
+
+  return {
+    status: "ok",
+    service: SERVICE_NAME,
+    version: SERVICE_VERSION,
+    message: "Agency SEO/GEO MCP server is running. Connect MCP clients to the /mcp endpoint.",
+    readOnly: config.READ_ONLY_MODE,
+    endpoints: {
+      health: `${baseUrl}/health`,
+      ready: `${baseUrl}/ready`,
+      version: `${baseUrl}/version`,
+      mcp: `${baseUrl}/mcp`
+    },
+    mcp: {
+      transport: "streamable_http",
+      method: "JSON-RPC 2.0",
+      discovery: "tools/list"
+    },
+    timestamp: new Date().toISOString()
+  };
+}
+
 export interface ReadinessPayload {
   status: "ready";
   database: "configured" | "not_configured";

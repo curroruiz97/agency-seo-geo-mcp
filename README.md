@@ -4,7 +4,7 @@ Servidor MCP central para una agencia SEO/GEO. El despliegue real actual usa **P
 
 ## Estado Actual
 
-- Version de app: `0.3.1`.
+- Version de app: `0.3.2`.
 - Produccion/staging publico actual: `https://lava.avenuemedia.io`.
 - Ruta en VPS: `/var/www/vhosts/avenuemedia.io/lava.avenuemedia.io/app`.
 - Proceso: PM2.
@@ -22,6 +22,7 @@ GET  /ready
 GET  /version
 POST /mcp
 GET  /mcp
+GET  /
 ```
 
 Checks esperados:
@@ -138,7 +139,7 @@ pm2 save
 
 ## Prioridad Inmediata
 
-1. Desplegar `main` en VPS y confirmar `https://lava.avenuemedia.io/version` con `0.3.1`.
+1. Desplegar `main` en VPS y confirmar `https://lava.avenuemedia.io/version` con `0.3.2`.
 2. Confirmar que `tools/list` devuelve 39 tools con annotations y sin schemas `$ref`.
 3. Confirmar que PM2 carga `HOST=127.0.0.1`.
 4. Confirmar que PM2 carga `DATABASE_URL` y `DIRECT_URL`.

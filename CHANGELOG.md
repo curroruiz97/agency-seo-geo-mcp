@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Add `GET /` as a safe service directory for browser visits to the MCP domain.
+- Document the root endpoint and bump deployment verification to `0.3.2`.
+
 ## 0.3.1
 
 - Add ChatGPT Apps/Builder-compatible tool descriptors with titles, output schemas, required annotations and invocation metadata.

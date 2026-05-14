@@ -5,7 +5,7 @@ import rateLimit from "express-rate-limit";
 import type { AppContext } from "../app/appContext.js";
 import { SERVICE_NAME, SERVICE_VERSION } from "../config/constants.js";
 import { createHttpLogger } from "../utils/logger.js";
-import { getHealthPayload, getReadinessPayload } from "./health.js";
+import { getHealthPayload, getReadinessPayload, getRootPayload } from "./health.js";
 import { handleMcpRequest } from "./mcp.js";
 import { requestId } from "./requestId.js";
 import { requireMcpBearerToken, validateOrigin } from "./security.js";
@@ -35,6 +35,10 @@ export function createHttpServer(context: AppContext) {
     })
   );
   app.use(express.json({ limit: "1mb" }));
+
+  app.get("/", (_req, res) => {
+    res.json(getRootPayload(config));
+  });
 
   app.get("/health", (_req, res) => {
     res.json(getHealthPayload(config));
