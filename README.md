@@ -1,13 +1,13 @@
 # Agency SEO/GEO MCP
 
-Servidor MCP central para una agencia SEO/GEO. El despliegue real actual usa **Plesk/nginx + PM2 + Node.js** en el VPS IONOS, con **Supabase Cloud Postgres** como base de datos gestionada.
+Servidor MCP central para una agencia SEO/GEO. El despliegue real actual usa **Plesk/nginx + Node.js** en el VPS IONOS, con **Supabase Cloud Postgres** como base de datos gestionada.
 
 ## Estado Actual
 
-- Version de app: `0.3.3`.
+- Version de app: `0.4.0`.
 - Produccion/staging publico actual: `https://lava.avenuemedia.io`.
 - Ruta en VPS: `/var/www/vhosts/avenuemedia.io/lava.avenuemedia.io/app`.
-- Proceso: PM2.
+- Proceso: Node.js gestionado desde Plesk.
 - Proxy HTTPS: Plesk/nginx.
 - Node debe escuchar internamente en `127.0.0.1:3000`.
 - Docker y Caddy existen en el repo como soporte/local/alternativa, pero **no son la ruta activa de despliegue**.
@@ -33,16 +33,26 @@ curl https://lava.avenuemedia.io/ready
 curl https://lava.avenuemedia.io/version
 ```
 
-`/ready` debe devolver `database: configured` cuando PM2 este cargando bien `DATABASE_URL`.
+`/ready` debe devolver `database: configured` cuando Plesk Node.js este cargando bien `DATABASE_URL`.
 
-## MCP Tools Actuales
+## ChatGPT App Y MCP Tools Actuales
 
-El MCP publica 39 acciones para que ChatGPT pueda detectar el conector como utilizable. Cada tool publica `title`, `description`, `inputSchema`, `outputSchema`, `annotations` y metadata de invocacion compatible con ChatGPT Apps/Builder.
+El proyecto ya incluye una base de ChatGPT App:
+
+- recurso UI `ui://widget/avenue-ai-v1.html`;
+- widget compilado desde `web/src`;
+- MIME `text/html;profile=mcp-app`;
+- CSP y domain declarados;
+- `_meta.ui.resourceUri` y `openai/outputTemplate` en todas las tools.
+
+El MCP publica 41 acciones para que ChatGPT pueda detectar el conector como utilizable. Cada tool publica `title`, `description`, `inputSchema`, `outputSchema`, `annotations`, `structuredContent` y metadata de invocacion compatible con ChatGPT Apps/Builder.
 
 Base:
 
 - `ping`
 - `get_server_status`
+- `search`
+- `fetch`
 - `list_projects`
 - `list_sites`
 
@@ -90,6 +100,7 @@ Google:
 ```bash
 npm install
 cp .env.example .env
+npm run build:widget
 npm run check
 npm run dev
 ```
@@ -134,16 +145,18 @@ npm run build
 En VPS, tras cambiar `.env`:
 
 ```bash
-pm2 restart agency-seo-geo-mcp --update-env
-pm2 save
+mkdir -p tmp
+touch tmp/restart.txt
 ```
+
+Tambien se puede reiniciar desde el panel Node.js de Plesk con `Restart App`.
 
 ## Prioridad Inmediata
 
-1. Desplegar `main` en VPS y confirmar `https://lava.avenuemedia.io/version` con `0.3.3`.
-2. Confirmar que `tools/list` devuelve 39 tools con annotations y sin schemas `$ref`.
-3. Confirmar que PM2 carga `HOST=127.0.0.1`.
-4. Confirmar que PM2 carga `DATABASE_URL` y `DIRECT_URL`.
+1. Desplegar `main` en VPS y confirmar `https://lava.avenuemedia.io/version` con `0.4.0`.
+2. Confirmar que `tools/list` devuelve 41 tools con annotations, output templates y sin schemas `$ref`.
+3. Confirmar que Plesk Node.js carga `HOST=127.0.0.1`.
+4. Confirmar que Plesk Node.js carga `DATABASE_URL` y `DIRECT_URL`.
 5. Confirmar `https://lava.avenuemedia.io/ready` con `database: configured`.
 6. Confirmar que `http://212.227.90.205:3000` no responde desde fuera.
 7. Crear un conector nuevo en ChatGPT si el conector anterior sigue cacheado con 0 acciones.
@@ -159,7 +172,7 @@ curl -s https://lava.avenuemedia.io/mcp \
   --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-Debe devolver 39 tools. Si el curl es correcto pero Builder sigue mostrando 0 acciones, borrar el conector antiguo y crear uno nuevo apuntando a `https://lava.avenuemedia.io/mcp`, porque Builder puede quedarse con metadata cacheada.
+Debe devolver 41 tools. Si el curl es correcto pero Builder sigue mostrando 0 acciones, borrar el conector antiguo y crear uno nuevo apuntando a `https://lava.avenuemedia.io/mcp`, porque Builder puede quedarse con metadata cacheada.
 
 Si el endpoint `/mcp` tiene bearer token, mantener `ALLOW_PUBLIC_MCP_DISCOVERY=true`. Esto permite que Builder lea `initialize` y `tools/list` sin credenciales para indexar acciones, pero mantiene `tools/call` protegido con `MCP_BEARER_TOKEN`.
 

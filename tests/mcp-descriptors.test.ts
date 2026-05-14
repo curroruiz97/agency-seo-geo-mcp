@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { createAppContext } from "../src/app/appContext.js";
+import { AVENUE_AI_WIDGET_URI } from "../src/app-ui/avenueAppResource.js";
 import { loadConfig } from "../src/config/env.js";
 import { createMcpServer } from "../src/server/mcp.js";
 
@@ -34,6 +35,7 @@ const config = loadConfig({
 const context = createAppContext(config);
 const server = createMcpServer(context);
 const registeredTools = (server as unknown as { _registeredTools?: Record<string, RegisteredTool> })._registeredTools ?? {};
+const registeredResources = (server as unknown as { _registeredResources?: Record<string, unknown> })._registeredResources ?? {};
 
 describe("MCP tool descriptors", () => {
   afterAll(async () => {
@@ -41,8 +43,10 @@ describe("MCP tool descriptors", () => {
   });
 
   it("publishes the expected action surface for ChatGPT Builder", () => {
-    expect(Object.keys(registeredTools).length).toBeGreaterThanOrEqual(39);
+    expect(Object.keys(registeredTools).length).toBeGreaterThanOrEqual(41);
     expect(registeredTools).toHaveProperty("ping");
+    expect(registeredTools).toHaveProperty("search");
+    expect(registeredTools).toHaveProperty("fetch");
     expect(registeredTools).toHaveProperty("list_projects");
     expect(registeredTools).toHaveProperty("update_post");
     expect(registeredTools).toHaveProperty("gsc_get_search_performance");
@@ -59,6 +63,10 @@ describe("MCP tool descriptors", () => {
       expect(tool.annotations?.openWorldHint, `${name} openWorldHint`).toBe(false);
       expect(tool._meta?.["openai/toolInvocation/invoking"], `${name} invoking meta`).toEqual(expect.any(String));
       expect(tool._meta?.["openai/toolInvocation/invoked"], `${name} invoked meta`).toEqual(expect.any(String));
+      expect(tool._meta?.["openai/outputTemplate"], `${name} output template`).toBe(AVENUE_AI_WIDGET_URI);
+      expect((tool._meta?.ui as { resourceUri?: string } | undefined)?.resourceUri, `${name} ui resource`).toBe(
+        AVENUE_AI_WIDGET_URI
+      );
       expect(tool.execution, `${name} execution descriptor`).toBeUndefined();
     }
   });
@@ -68,5 +76,10 @@ describe("MCP tool descriptors", () => {
     expect(registeredTools.gsc_get_search_performance?.annotations?.readOnlyHint).toBe(true);
     expect(registeredTools.update_post?.annotations?.readOnlyHint).toBe(false);
     expect(registeredTools.create_redirection?.annotations?.readOnlyHint).toBe(false);
+  });
+
+  it("registers the Avenue AI app resource used by tool descriptors", () => {
+    expect(Object.keys(registeredResources).length).toBeGreaterThanOrEqual(1);
+    expect(JSON.stringify(registeredResources)).toContain(AVENUE_AI_WIDGET_URI);
   });
 });

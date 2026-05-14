@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Request, Response } from "express";
 import type { AppContext } from "../app/appContext.js";
+import { registerAvenueAppResource } from "../app-ui/avenueAppResource.js";
 import { SERVICE_NAME, SERVICE_VERSION } from "../config/constants.js";
 import { registerTools } from "../mcp-tools/register.js";
 
@@ -11,6 +12,7 @@ export function createMcpServer(context: AppContext) {
     version: SERVICE_VERSION
   });
 
+  registerAvenueAppResource(server, context.config);
   registerTools(server, context);
 
   return server;

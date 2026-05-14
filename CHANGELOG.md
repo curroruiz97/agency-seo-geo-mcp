@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- Add the MCP Apps layer with `@modelcontextprotocol/ext-apps`.
+- Register the Avenue AI widget resource at `ui://widget/avenue-ai-v1.html` with `text/html;profile=mcp-app`.
+- Add a vanilla widget bundle under `web/src` and compile it with esbuild through `npm run build:widget`.
+- Attach `_meta.ui.resourceUri`, legacy `ui/resourceUri`, and `openai/outputTemplate` to every tool.
+- Add CSP, widget domain, and widget description metadata.
+- Add connector/company-knowledge compatible `search` and `fetch` tools.
+- Allow public MCP resource discovery/read requests while keeping `tools/call` protected.
+
 ## 0.3.3
 
 - Allow unauthenticated MCP discovery requests (`initialize`, `notifications/initialized`, `tools/list`) when `ALLOW_PUBLIC_MCP_DISCOVERY=true`.
@@ -32,9 +42,9 @@
 - Add Prisma schema for Supabase Postgres.
 - Add modular app context and MCP tool registration.
 - Add HTTP hardening, `/ready`, `/version`, Docker healthcheck and CI.
-- Document current Plesk/nginx + PM2 deployment at `https://lava.avenuemedia.io`.
+- Document current Plesk/nginx + Node.js deployment at `https://lava.avenuemedia.io`.
 - Add Supabase migration and seed workflow.
-- Add `HOST=127.0.0.1` deployment guidance for PM2.
+- Add `HOST=127.0.0.1` deployment guidance for Plesk Node.js.
 
 ## 0.1.0
 

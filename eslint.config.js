@@ -17,6 +17,17 @@ export default [
     }
   },
   {
-    ignores: ["dist/**", "node_modules/**"]
+    files: ["web/src/**/*.ts"],
+    languageOptions: {
+      globals: {
+        document: "readonly",
+        window: "readonly",
+        MessageEvent: "readonly",
+        Record: "readonly"
+      }
+    }
+  },
+  {
+    ignores: ["dist/**", "**/dist/**", "node_modules/**"]
   }
 ];

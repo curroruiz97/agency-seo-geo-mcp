@@ -54,6 +54,22 @@ describe("MCP bearer auth", () => {
     expect(res.statusCode).toBe(200);
   });
 
+  it("allows unauthenticated app resource reads when public discovery is enabled", () => {
+    const req = createRequest("POST", {
+      jsonrpc: "2.0",
+      id: 3,
+      method: "resources/read",
+      params: { uri: "ui://widget/avenue-ai-v1.html" }
+    });
+    const res = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    requireMcpBearerToken(config)(req, res, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.statusCode).toBe(200);
+  });
+
   it("keeps tool calls protected without a valid token", () => {
     const req = createRequest("POST", {
       jsonrpc: "2.0",

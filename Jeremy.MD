@@ -36,13 +36,13 @@ En el VPS esta en:
 Se ejecuta con:
 
 ```text
-Plesk/nginx + PM2 + Node.js
+Plesk/nginx + Node.js gestionado desde Plesk
 ```
 
 No se esta usando Docker en produccion.
 No se esta usando Caddy en produccion.
 
-Docker y Caddy pueden quedar para local o futuro, pero el camino actual correcto es Plesk/nginx + PM2.
+Docker y Caddy pueden quedar para local o futuro, pero el camino actual correcto es Plesk/nginx + Node.js desde el panel de Plesk.
 
 ## 3. Que Ya Funciona
 
@@ -52,7 +52,12 @@ El codigo tiene:
 - `/ready`
 - `/version`
 - `/mcp`
-- 39 tools MCP publicadas para ChatGPT
+- 41 tools MCP publicadas para ChatGPT
+- herramienta `search`
+- herramienta `fetch`
+- widget ChatGPT App en `ui://widget/avenue-ai-v1.html`
+- bundle web en `web/src` compilado con `npm run build:widget`
+- CSP y domain declarados para el widget
 - descriptors completos de tools: nombre, titulo, descripcion, parametros, output y annotations
 - respuestas de tools con `structuredContent`
 - Prisma
@@ -65,8 +70,8 @@ El codigo tiene:
 
 Antes de conectar ChatGPT, hay que cerrar estos puntos:
 
-1. PM2 debe cargar `DATABASE_URL`.
-2. PM2 debe cargar `DIRECT_URL`.
+1. Plesk Node.js debe cargar `DATABASE_URL`.
+2. Plesk Node.js debe cargar `DIRECT_URL`.
 3. `/ready` debe devolver `database: configured`.
 4. Node debe escuchar en `127.0.0.1:3000`, no en `0.0.0.0:3000`.
 5. La URL `http://212.227.90.205:3000` no debe responder desde fuera.
@@ -116,28 +121,21 @@ npm run db:seed
 npm run build
 ```
 
-Reiniciar PM2:
+Reiniciar la app en Plesk:
 
 ```bash
-pm2 list
-pm2 restart agency-seo-geo-mcp --update-env
-pm2 save
+mkdir -p tmp
+touch tmp/restart.txt
 ```
 
-Si el proceso no se llama `agency-seo-geo-mcp`, usa el nombre real que salga en `pm2 list`.
+Tambien puedes usar el boton `Restart App` en la pantalla Node.js de Plesk.
 
-## 7. Comprobar Que PM2 Tiene Las Variables
+## 7. Comprobar Que Plesk Tiene Las Variables
 
-Primero sacar el ID:
-
-```bash
-pm2 list
-```
-
-Luego:
+En Plesk, revisar la pantalla Node.js del dominio y confirmar que las variables existen. Si se revisa por terminal, no imprimas passwords completas.
 
 ```bash
-pm2 env <ID> | grep -E 'HOST|PORT|PUBLIC_BASE_URL|DATABASE_URL|DIRECT_URL|READ_ONLY_MODE'
+grep -E 'HOST|PORT|PUBLIC_BASE_URL|DATABASE_URL|DIRECT_URL|READ_ONLY_MODE|ALLOW_PUBLIC_MCP_DISCOVERY' .env
 ```
 
 Debe aparecer:
@@ -210,6 +208,8 @@ Deben salir muchas tools. Como minimo:
 
 - `ping`
 - `get_server_status`
+- `search`
+- `fetch`
 - `list_projects`
 - `list_sites`
 - `get_post`
@@ -220,7 +220,7 @@ Deben salir muchas tools. Como minimo:
 - `gsc_get_search_performance`
 - `ga_get_traffic_overview`
 
-En la version `0.3.1`, el servidor debe devolver 39 tools. Todas deben tener metadata completa para ChatGPT:
+En la version `0.4.0`, el servidor debe devolver 41 tools. Todas deben tener metadata completa para ChatGPT:
 
 ```text
 name
@@ -229,15 +229,26 @@ description
 inputSchema
 outputSchema
 annotations
+_meta.ui.resourceUri
+openai/outputTemplate
 ```
 
-Si el comando anterior devuelve 39 tools pero ChatGPT Builder sigue diciendo que hay 0 acciones, lo mas probable es cache/indexacion del conector antiguo. La solucion practica es borrar ese conector y crear uno nuevo con la misma URL:
+Tambien debe existir el recurso UI:
+
+```bash
+curl -s https://lava.avenuemedia.io/mcp \
+  -H "content-type: application/json" \
+  -H "accept: application/json, text/event-stream" \
+  --data '{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"ui://widget/avenue-ai-v1.html"}}'
+```
+
+Si el comando anterior devuelve 41 tools pero ChatGPT Builder sigue diciendo que hay 0 acciones, lo mas probable es cache/indexacion del conector antiguo. La solucion practica es borrar ese conector y crear uno nuevo con la misma URL:
 
 ```text
 https://lava.avenuemedia.io/mcp
 ```
 
-Si hay bearer token en el MCP, deja `ALLOW_PUBLIC_MCP_DISCOVERY=true`. Asi ChatGPT puede leer el catalogo de acciones (`initialize` y `tools/list`) aunque las ejecuciones reales (`tools/call`) sigan protegidas por `MCP_BEARER_TOKEN`.
+Si hay bearer token en el MCP, deja `ALLOW_PUBLIC_MCP_DISCOVERY=true`. Asi ChatGPT puede leer el catalogo de acciones y el widget (`initialize`, `tools/list`, `resources/list`, `resources/read`) aunque las ejecuciones reales (`tools/call`) sigan protegidas por `MCP_BEARER_TOKEN`.
 
 Despues probar `list_projects`. Debe devolver los 3 proyectos seed si Supabase esta cargado.
 
@@ -248,9 +259,10 @@ Tambien puedes probar una escritura segura como `update_post`. No debe tocar Wor
 Solo conectar ChatGPT cuando:
 
 - `https://lava.avenuemedia.io/health` funciona.
-- `https://lava.avenuemedia.io/version` devuelve `0.3.3`.
+- `https://lava.avenuemedia.io/version` devuelve `0.4.0`.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
-- `https://lava.avenuemedia.io/mcp` lista 39 tools.
+- `https://lava.avenuemedia.io/mcp` lista 41 tools.
+- `resources/read` devuelve `ui://widget/avenue-ai-v1.html`.
 - `http://212.227.90.205:3000` no responde desde fuera.
 
 Connector URL:

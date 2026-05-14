@@ -10,13 +10,13 @@ Construir un servidor MCP central para gestionar SEO/GEO de proyectos WordPress 
 ChatGPT
   -> https://lava.avenuemedia.io/mcp
   -> Plesk/nginx HTTPS proxy
-  -> PM2 + Node.js en 127.0.0.1:3000
+  -> Plesk Node.js en 127.0.0.1:3000
   -> Agency SEO/GEO MCP
   -> Supabase Cloud Postgres
   -> WordPress / Rank Math / SE Ranking en fases posteriores
 ```
 
-Docker y Caddy quedan como alternativa local/infra futura, pero el despliegue real actual es Plesk/nginx + PM2.
+Docker y Caddy quedan como alternativa local/infra futura, pero el despliegue real actual es Plesk/nginx + Node.js gestionado desde Plesk.
 
 ## Estado Actual Del Proyecto
 
@@ -33,19 +33,26 @@ Completado:
 - GitHub Actions CI.
 - Hardening basico: Helmet, rate limit, request id, errores saneados, `HOST`.
 - Despliegue actual en `https://lava.avenuemedia.io`.
-- Version actual `0.3.3`.
-- Superficie MCP amplia de 39 acciones para que ChatGPT detecte el conector:
+- Version actual `0.4.0`.
+- Capa ChatGPT App:
+  - recurso UI `ui://widget/avenue-ai-v1.html`
+  - widget `web/src` compilado con esbuild
+  - MIME `text/html;profile=mcp-app`
+  - CSP y domain declarados
+  - `_meta.ui.resourceUri` y `openai/outputTemplate` en las tools
+- Superficie MCP amplia de 41 acciones para que ChatGPT detecte el conector:
   - WordPress
   - Rank Math
   - SE Ranking
   - Google Search Console
   - Google Analytics
+  - `search` y `fetch` para compatibilidad con conocimiento/conectores
 - Tool descriptors compatibles con ChatGPT Apps/Builder: `title`, `description`, `inputSchema`, `outputSchema`, `annotations` y `structuredContent`.
 - Escrituras seguras como propuestas internas/change requests, sin cambios externos.
 
 Pendiente inmediato:
 
-- Confirmar en VPS que PM2 carga `DATABASE_URL` y `DIRECT_URL`.
+- Confirmar en VPS que Plesk Node.js carga `DATABASE_URL` y `DIRECT_URL`.
 - Confirmar que `/ready` devuelve `database: configured`.
 - Confirmar que Node escucha solo en `127.0.0.1:3000`.
 - Confirmar que la IP publica no expone `:3000`.
@@ -57,7 +64,7 @@ Pendiente inmediato:
 - No guardar credenciales en claro.
 - No devolver credenciales por MCP.
 - No conectar datos reales sin autenticacion compatible.
-- Permitir descubrimiento publico MCP (`initialize` y `tools/list`) cuando `ALLOW_PUBLIC_MCP_DISCOVERY=true`, manteniendo `tools/call` protegido con bearer token.
+- Permitir descubrimiento publico MCP (`initialize`, `tools/list`, `resources/list`, `resources/read`) cuando `ALLOW_PUBLIC_MCP_DISCOVERY=true`, manteniendo `tools/call` protegido con bearer token.
 - No aplicar cambios WordPress/Rank Math/Elementor hasta fases posteriores.
 - Elementor es solo lectura hasta que exista staging, diff y verificacion.
 
@@ -65,7 +72,7 @@ Pendiente inmediato:
 
 Estado: completada.
 
-Incluye servidor MCP, endpoints de salud, Docker local, PM2 deployment support, CI y documentacion.
+Incluye servidor MCP, endpoints de salud, Docker local, Plesk Node.js deployment support, CI y documentacion.
 
 ## Fase 1: Cierre Del Despliegue Actual
 
@@ -77,19 +84,20 @@ Objetivo:
 
 Tareas:
 
-- Verificar variables PM2.
+- Verificar variables en Plesk Node.js.
 - Ejecutar `npm run db:generate`, `npm run db:deploy`, `npm run db:seed` en VPS si no se hizo alli.
-- Reiniciar PM2 con `--update-env`.
+- Reiniciar la app desde Plesk Node.js o con `touch tmp/restart.txt`.
 - Verificar `/ready` en local y dominio.
 - Confirmar `ss -lntp | grep 3000` mostrando `127.0.0.1:3000`.
-- Probar `/mcp` `tools/list` y confirmar 39 tools.
+- Probar `/mcp` `tools/list` y confirmar 41 tools.
+- Probar `resources/list` y `resources/read` para el widget.
 
 Criterios de aceptacion:
 
 - `https://lava.avenuemedia.io/health` OK.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
-- `https://lava.avenuemedia.io/version` devuelve `0.3.3`.
-- `https://lava.avenuemedia.io/mcp` lista 39 tools MCP con annotations completas.
+- `https://lava.avenuemedia.io/version` devuelve `0.4.0`.
+- `https://lava.avenuemedia.io/mcp` lista 41 tools MCP con annotations completas y UI template.
 - `http://212.227.90.205:3000` no es accesible desde fuera.
 
 ## Fase 2: Conexion ChatGPT
@@ -103,14 +111,14 @@ Tareas:
 - Probar `ping`.
 - Probar `get_server_status`.
 - Probar `list_projects`.
-- Probar que `tools/list` muestra 39 acciones.
+- Probar que `tools/list` muestra 41 acciones.
 - Probar una accion de escritura segura, por ejemplo `update_post`, y confirmar que crea propuesta sin tocar WordPress.
 - Confirmar si ChatGPT necesita auth adicional.
-- Si Builder muestra 0 acciones pese a que `tools/list` devuelve 39, borrar el conector antiguo y crear uno nuevo para evitar metadata cacheada.
+- Si Builder muestra 0 acciones pese a que `tools/list` devuelve 41, borrar el conector antiguo y crear uno nuevo para evitar metadata cacheada.
 
 Criterios:
 
-- ChatGPT detecta las 39 tools.
+- ChatGPT detecta las 41 tools.
 - `list_projects` devuelve los 3 proyectos seed desde Supabase.
 - ChatGPT no muestra el MCP vacio en el editor.
 

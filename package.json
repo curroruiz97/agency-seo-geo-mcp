@@ -1,6 +1,6 @@
 {
   "name": "agency-seo-geo-mcp",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Agency SEO/GEO MCP server for safe WordPress, Rank Math and SE Ranking orchestration.",
   "type": "module",
   "private": true,
@@ -11,7 +11,8 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/src/index.js",
     "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('dist',{recursive:true,force:true}))\"",
-    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "build": "npm run build:widget && npm run clean && tsc -p tsconfig.build.json",
+    "build:widget": "node scripts/build-widget.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
@@ -24,6 +25,7 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.1",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@prisma/client": "^6.19.0",
     "cors": "^2.8.5",
@@ -40,6 +42,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.7",
+    "esbuild": "^0.28.0",
     "eslint": "^9.18.0",
     "prisma": "^6.19.0",
     "tsx": "^4.19.2",

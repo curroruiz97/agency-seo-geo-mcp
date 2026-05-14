@@ -18,7 +18,14 @@ export function validateOrigin(config: Pick<AppConfig, "ALLOWED_ORIGINS">) {
   };
 }
 
-const publicDiscoveryMethods = new Set(["initialize", "notifications/initialized", "tools/list"]);
+const publicDiscoveryMethods = new Set([
+  "initialize",
+  "notifications/initialized",
+  "tools/list",
+  "resources/list",
+  "resources/read",
+  "resources/templates/list"
+]);
 
 export function requireMcpBearerToken(config: Pick<AppConfig, "MCP_BEARER_TOKEN" | "ALLOW_PUBLIC_MCP_DISCOVERY">) {
   return (req: Request, res: Response, next: NextFunction) => {
