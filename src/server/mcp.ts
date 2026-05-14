@@ -20,6 +20,16 @@ export async function handleMcpRequest(context: AppContext, req: Request, res: R
   const server = createMcpServer(context);
   // Force Accept header so SDK's strict negotiation accepts any MCP client
   req.headers["accept"] = "application/json, text/event-stream";
+  // The MCP SDK reads the Accept header from req.rawHeaders when converting
+  // the Node request into a Web Request, so we also normalise rawHeaders here.
+  const rh = (req as unknown as { rawHeaders?: string[] }).rawHeaders;
+  if (Array.isArray(rh)) {
+    let found = false;
+    for (let i = 0; i < rh.length; i += 2) {
+      if (rh[i] && rh[i].toLowerCase() === "accept") { rh[i + 1] = "application/json, text/event-stream"; found = true; }
+    }
+    if (!found) { rh.push("accept", "application/json, text/event-stream"); }
+  }
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
