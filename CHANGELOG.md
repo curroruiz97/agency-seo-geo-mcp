@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.3.0 - Unreleased
+## 0.3.1
+
+- Add ChatGPT Apps/Builder-compatible tool descriptors with titles, output schemas, required annotations and invocation metadata.
+- Return structured MCP tool results through `structuredContent` as well as JSON text content.
+- Avoid reused Zod schema objects that can emit `$ref`/definitions in generated tool JSON schemas.
+- Add descriptor tests to prevent tools from being published without ChatGPT-compatible metadata.
+- Document the Builder 0-actions cache/indexing recovery path.
+
+## 0.3.0
 
 - Add a broad MCP action surface for ChatGPT connector discovery.
 - Add safe write tools that create internal change requests instead of touching external systems while read-only.

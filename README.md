@@ -4,7 +4,7 @@ Servidor MCP central para una agencia SEO/GEO. El despliegue real actual usa **P
 
 ## Estado Actual
 
-- Version de app: `0.2.0`.
+- Version de app: `0.3.1`.
 - Produccion/staging publico actual: `https://lava.avenuemedia.io`.
 - Ruta en VPS: `/var/www/vhosts/avenuemedia.io/lava.avenuemedia.io/app`.
 - Proceso: PM2.
@@ -36,7 +36,7 @@ curl https://lava.avenuemedia.io/version
 
 ## MCP Tools Actuales
 
-El MCP publica una superficie amplia de acciones para que ChatGPT pueda detectar el conector como utilizable.
+El MCP publica 39 acciones para que ChatGPT pueda detectar el conector como utilizable. Cada tool publica `title`, `description`, `inputSchema`, `outputSchema`, `annotations` y metadata de invocacion compatible con ChatGPT Apps/Builder.
 
 Base:
 
@@ -138,11 +138,26 @@ pm2 save
 
 ## Prioridad Inmediata
 
-1. Confirmar que PM2 carga `HOST=127.0.0.1`.
-2. Confirmar que PM2 carga `DATABASE_URL` y `DIRECT_URL`.
-3. Confirmar `https://lava.avenuemedia.io/ready` con `database: configured`.
-4. Confirmar que `http://212.227.90.205:3000` no responde desde fuera.
-5. Probar `https://lava.avenuemedia.io/mcp` desde ChatGPT.
+1. Desplegar `main` en VPS y confirmar `https://lava.avenuemedia.io/version` con `0.3.1`.
+2. Confirmar que `tools/list` devuelve 39 tools con annotations y sin schemas `$ref`.
+3. Confirmar que PM2 carga `HOST=127.0.0.1`.
+4. Confirmar que PM2 carga `DATABASE_URL` y `DIRECT_URL`.
+5. Confirmar `https://lava.avenuemedia.io/ready` con `database: configured`.
+6. Confirmar que `http://212.227.90.205:3000` no responde desde fuera.
+7. Crear un conector nuevo en ChatGPT si el conector anterior sigue cacheado con 0 acciones.
+
+## Si ChatGPT Muestra 0 Acciones
+
+Primero comprobar que el servidor lista tools:
+
+```bash
+curl -s https://lava.avenuemedia.io/mcp \
+  -H "content-type: application/json" \
+  -H "accept: application/json, text/event-stream" \
+  --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+Debe devolver 39 tools. Si el curl es correcto pero Builder sigue mostrando 0 acciones, borrar el conector antiguo y crear uno nuevo apuntando a `https://lava.avenuemedia.io/mcp`, porque Builder puede quedarse con metadata cacheada.
 
 ## Limites Actuales
 

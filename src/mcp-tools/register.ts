@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AppContext } from "../app/appContext.js";
 import { registerGoogleAnalyticsTools, registerGoogleSearchConsoleTools } from "./google.tools.js";
@@ -7,4 +8,85 @@ import { registerSerankingTools } from "./seranking.tools.js";
 import { registerSystemTools } from "./system.tools.js";
 import { registerWordPressTools } from "./wordpress.tools.js";
 
-export function registerTools(server: McpServer, context: AppContext) { registerSystemTools(server, context); registerProjectTools(server, context); registerWordPressTools(server, context); registerRankMathTools(server, context); registerSerankingTools(server, context); registerGoogleSearchConsoleTools(server, context); registerGoogleAnalyticsTools(server, context); const registered = (server as unknown as { _registeredTools?: Record<string, { execution?: unknown }> })._registeredTools; if (registered) { for (const tool of Object.values(registered)) { delete tool.execution; } } }
+interface ToolAnnotations {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  openWorldHint: boolean;
+  idempotentHint?: boolean;
+}
+
+interface InternalRegisteredTool {
+  title?: string;
+  description?: string;
+  inputSchema?: unknown;
+  outputSchema?: unknown;
+  annotations?: Partial<ToolAnnotations>;
+  execution?: unknown;
+  _meta?: Record<string, unknown>;
+}
+
+const genericOutputSchema = z.object({}).passthrough();
+
+const acronymTitles: Record<string, string> = {
+  ga: "GA",
+  geo: "GEO",
+  gsc: "GSC",
+  mcp: "MCP",
+  seo: "SEO",
+  seranking: "SE Ranking",
+  rankmath: "Rank Math"
+};
+
+const readOnlyPrefixes = ["get_", "list_", "gsc_get_", "gsc_list_", "ga_get_", "ga_list_", "seranking_get_"];
+const readOnlyNames = new Set(["ping", "get_server_status", "list_projects", "list_sites"]);
+
+export function registerTools(server: McpServer, context: AppContext) {
+  registerSystemTools(server, context);
+  registerProjectTools(server, context);
+  registerWordPressTools(server, context);
+  registerRankMathTools(server, context);
+  registerSerankingTools(server, context);
+  registerGoogleSearchConsoleTools(server, context);
+  registerGoogleAnalyticsTools(server, context);
+  normalizeToolDescriptors(server);
+}
+
+function normalizeToolDescriptors(server: McpServer) {
+  const registered = (server as unknown as { _registeredTools?: Record<string, InternalRegisteredTool> })._registeredTools;
+  if (!registered) {
+    return;
+  }
+
+  for (const [name, tool] of Object.entries(registered)) {
+    const readOnly = isReadOnlyTool(name);
+
+    tool.title ??= titleFromName(name);
+    tool.outputSchema ??= genericOutputSchema;
+    tool.annotations = {
+      readOnlyHint: readOnly,
+      destructiveHint: false,
+      openWorldHint: false,
+      idempotentHint: readOnly,
+      ...tool.annotations
+    };
+    tool._meta = {
+      "openai/toolInvocation/invoking": readOnly ? "Consultando datos" : "Creando propuesta",
+      "openai/toolInvocation/invoked": readOnly ? "Datos consultados" : "Propuesta creada",
+      ...tool._meta
+    };
+
+    // ChatGPT/Builder currently indexes normal MCP tools, not SDK experimental task descriptors.
+    delete tool.execution;
+  }
+}
+
+function isReadOnlyTool(name: string) {
+  return readOnlyNames.has(name) || readOnlyPrefixes.some((prefix) => name.startsWith(prefix));
+}
+
+function titleFromName(name: string) {
+  return name
+    .split("_")
+    .map((part) => acronymTitles[part] ?? part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}

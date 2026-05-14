@@ -33,12 +33,14 @@ Completado:
 - GitHub Actions CI.
 - Hardening basico: Helmet, rate limit, request id, errores saneados, `HOST`.
 - Despliegue actual en `https://lava.avenuemedia.io`.
-- Superficie MCP amplia para que ChatGPT detecte acciones:
+- Version actual `0.3.1`.
+- Superficie MCP amplia de 39 acciones para que ChatGPT detecte el conector:
   - WordPress
   - Rank Math
   - SE Ranking
   - Google Search Console
   - Google Analytics
+- Tool descriptors compatibles con ChatGPT Apps/Builder: `title`, `description`, `inputSchema`, `outputSchema`, `annotations` y `structuredContent`.
 - Escrituras seguras como propuestas internas/change requests, sin cambios externos.
 
 Pendiente inmediato:
@@ -79,14 +81,14 @@ Tareas:
 - Reiniciar PM2 con `--update-env`.
 - Verificar `/ready` en local y dominio.
 - Confirmar `ss -lntp | grep 3000` mostrando `127.0.0.1:3000`.
-- Probar `/mcp` `tools/list`.
+- Probar `/mcp` `tools/list` y confirmar 39 tools.
 
 Criterios de aceptacion:
 
 - `https://lava.avenuemedia.io/health` OK.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
-- `https://lava.avenuemedia.io/version` devuelve `0.2.0`.
-- `https://lava.avenuemedia.io/mcp` lista tools MCP.
+- `https://lava.avenuemedia.io/version` devuelve `0.3.1`.
+- `https://lava.avenuemedia.io/mcp` lista 39 tools MCP con annotations completas.
 - `http://212.227.90.205:3000` no es accesible desde fuera.
 
 ## Fase 2: Conexion ChatGPT
@@ -100,13 +102,14 @@ Tareas:
 - Probar `ping`.
 - Probar `get_server_status`.
 - Probar `list_projects`.
-- Probar que `tools/list` muestra la superficie completa de acciones.
+- Probar que `tools/list` muestra 39 acciones.
 - Probar una accion de escritura segura, por ejemplo `update_post`, y confirmar que crea propuesta sin tocar WordPress.
 - Confirmar si ChatGPT necesita auth adicional.
+- Si Builder muestra 0 acciones pese a que `tools/list` devuelve 39, borrar el conector antiguo y crear uno nuevo para evitar metadata cacheada.
 
 Criterios:
 
-- ChatGPT detecta las 3 tools.
+- ChatGPT detecta las 39 tools.
 - `list_projects` devuelve los 3 proyectos seed desde Supabase.
 - ChatGPT no muestra el MCP vacio en el editor.
 

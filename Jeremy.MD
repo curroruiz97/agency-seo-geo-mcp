@@ -52,9 +52,9 @@ El codigo tiene:
 - `/ready`
 - `/version`
 - `/mcp`
-- tool `ping`
-- tool `get_server_status`
-- tool `list_projects`
+- 39 tools MCP publicadas para ChatGPT
+- descriptors completos de tools: nombre, titulo, descripcion, parametros, output y annotations
+- respuestas de tools con `structuredContent`
 - Prisma
 - Supabase schema
 - migracion inicial
@@ -219,6 +219,23 @@ Deben salir muchas tools. Como minimo:
 - `gsc_get_search_performance`
 - `ga_get_traffic_overview`
 
+En la version `0.3.1`, el servidor debe devolver 39 tools. Todas deben tener metadata completa para ChatGPT:
+
+```text
+name
+title
+description
+inputSchema
+outputSchema
+annotations
+```
+
+Si el comando anterior devuelve 39 tools pero ChatGPT Builder sigue diciendo que hay 0 acciones, lo mas probable es cache/indexacion del conector antiguo. La solucion practica es borrar ese conector y crear uno nuevo con la misma URL:
+
+```text
+https://lava.avenuemedia.io/mcp
+```
+
 Despues probar `list_projects`. Debe devolver los 3 proyectos seed si Supabase esta cargado.
 
 Tambien puedes probar una escritura segura como `update_post`. No debe tocar WordPress. Debe crear una propuesta interna/change request o indicar por que no puede persistirla.
@@ -228,8 +245,9 @@ Tambien puedes probar una escritura segura como `update_post`. No debe tocar Wor
 Solo conectar ChatGPT cuando:
 
 - `https://lava.avenuemedia.io/health` funciona.
+- `https://lava.avenuemedia.io/version` devuelve `0.3.1`.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
-- `https://lava.avenuemedia.io/mcp` lista tools.
+- `https://lava.avenuemedia.io/mcp` lista 39 tools.
 - `http://212.227.90.205:3000` no responde desde fuera.
 
 Connector URL:

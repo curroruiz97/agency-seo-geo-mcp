@@ -14,8 +14,8 @@ export function registerGoogleSearchConsoleTools(server: McpServer, context: App
     "Devuelve clics, impresiones, CTR y posicion media desde Google Search Console.",
     {
       property_id: z.string().min(1),
-      start_date: dateString,
-      end_date: dateString,
+      start_date: dateString(),
+      end_date: dateString(),
       dimensions: z.array(z.enum(["query", "page", "country", "device", "date"])).optional(),
       filters: z.record(z.unknown()).optional()
     },
@@ -26,14 +26,14 @@ export function registerGoogleSearchConsoleTools(server: McpServer, context: App
   server.tool(
     "gsc_get_page_queries",
     "Devuelve queries que traen trafico organico a una URL concreta.",
-    { property_id: z.string().min(1), page_url: z.string().url(), start_date: dateString, end_date: dateString },
+    { property_id: z.string().min(1), page_url: z.string().url(), start_date: dateString(), end_date: dateString() },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "google_search_console", "gsc_get_page_queries", input))
   );
 
   server.tool(
     "gsc_get_query_pages",
     "Devuelve paginas que posicionan para una query concreta.",
-    { property_id: z.string().min(1), query: z.string().min(1), start_date: dateString, end_date: dateString },
+    { property_id: z.string().min(1), query: z.string().min(1), start_date: dateString(), end_date: dateString() },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "google_search_console", "gsc_get_query_pages", input))
   );
 
@@ -61,7 +61,7 @@ export function registerGoogleAnalyticsTools(server: McpServer, context: AppCont
   server.tool(
     "ga_get_traffic_overview",
     "Devuelve resumen de trafico de Google Analytics.",
-    { property_id: z.string().min(1), start_date: dateString, end_date: dateString },
+    { property_id: z.string().min(1), start_date: dateString(), end_date: dateString() },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "google_analytics", "ga_get_traffic_overview", input))
   );
 
@@ -70,8 +70,8 @@ export function registerGoogleAnalyticsTools(server: McpServer, context: AppCont
     "Devuelve landing pages principales desde Google Analytics.",
     {
       property_id: z.string().min(1),
-      start_date: dateString,
-      end_date: dateString,
+      start_date: dateString(),
+      end_date: dateString(),
       limit: z.number().int().positive().max(500).optional().default(100)
     },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "google_analytics", "ga_get_landing_pages", input))
@@ -80,21 +80,26 @@ export function registerGoogleAnalyticsTools(server: McpServer, context: AppCont
   server.tool(
     "ga_get_engagement_metrics",
     "Devuelve metricas de engagement de Google Analytics.",
-    { property_id: z.string().min(1), start_date: dateString, end_date: dateString, page_url: z.string().url().optional() },
+    {
+      property_id: z.string().min(1),
+      start_date: dateString(),
+      end_date: dateString(),
+      page_url: z.string().url().optional()
+    },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "google_analytics", "ga_get_engagement_metrics", input))
   );
 
   server.tool(
     "ga_get_conversions",
     "Devuelve conversiones de Google Analytics.",
-    { property_id: z.string().min(1), start_date: dateString, end_date: dateString },
+    { property_id: z.string().min(1), start_date: dateString(), end_date: dateString() },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "google_analytics", "ga_get_conversions", input))
   );
 
   server.tool(
     "ga_get_channel_performance",
     "Devuelve rendimiento por canal de adquisicion en Google Analytics.",
-    { property_id: z.string().min(1), start_date: dateString, end_date: dateString },
+    { property_id: z.string().min(1), start_date: dateString(), end_date: dateString() },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "google_analytics", "ga_get_channel_performance", input))
   );
 }

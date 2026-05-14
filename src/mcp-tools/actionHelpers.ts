@@ -2,9 +2,17 @@ import { z } from "zod";
 import type { AppContext } from "../app/appContext.js";
 import { isDatabaseUrlConfigured } from "../config/database.js";
 
-export const siteId = z.string().min(1).describe("Agency project/site id from list_sites or list_projects.");
-export const optionalText = z.string().min(1).optional();
-export const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Date in YYYY-MM-DD format.");
+export function siteId() {
+  return z.string().min(1).describe("Agency project/site id from list_sites or list_projects.");
+}
+
+export function optionalText() {
+  return z.string().min(1).optional();
+}
+
+export function dateString() {
+  return z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Date in YYYY-MM-DD format.");
+}
 
 export function integrationNotConfigured(context: AppContext, integration: string, action: string, extra: Record<string, unknown> = {}) {
   return {

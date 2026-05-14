@@ -1,0 +1,72 @@
+import { afterAll, describe, expect, it } from "vitest";
+import { createAppContext } from "../src/app/appContext.js";
+import { loadConfig } from "../src/config/env.js";
+import { createMcpServer } from "../src/server/mcp.js";
+
+interface RegisteredTool {
+  title?: string;
+  description?: string;
+  inputSchema?: unknown;
+  outputSchema?: unknown;
+  annotations?: {
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    openWorldHint?: boolean;
+    idempotentHint?: boolean;
+  };
+  execution?: unknown;
+  _meta?: Record<string, unknown>;
+}
+
+const config = loadConfig({
+  NODE_ENV: "test",
+  HOST: "127.0.0.1",
+  PORT: "3010",
+  PUBLIC_BASE_URL: "https://lava.avenuemedia.io",
+  READ_ONLY_MODE: "true",
+  ALLOWED_ORIGINS: "https://chatgpt.com,https://chat.openai.com",
+  REQUIRE_MCP_AUTH: "false",
+  LOG_LEVEL: "silent",
+  DATABASE_URL: "",
+  DIRECT_URL: ""
+});
+
+const context = createAppContext(config);
+const server = createMcpServer(context);
+const registeredTools = (server as unknown as { _registeredTools?: Record<string, RegisteredTool> })._registeredTools ?? {};
+
+describe("MCP tool descriptors", () => {
+  afterAll(async () => {
+    await server.close();
+  });
+
+  it("publishes the expected action surface for ChatGPT Builder", () => {
+    expect(Object.keys(registeredTools).length).toBeGreaterThanOrEqual(39);
+    expect(registeredTools).toHaveProperty("ping");
+    expect(registeredTools).toHaveProperty("list_projects");
+    expect(registeredTools).toHaveProperty("update_post");
+    expect(registeredTools).toHaveProperty("gsc_get_search_performance");
+  });
+
+  it("adds required ChatGPT-compatible metadata to every tool", () => {
+    for (const [name, tool] of Object.entries(registeredTools)) {
+      expect(tool.title, `${name} title`).toEqual(expect.any(String));
+      expect(tool.description, `${name} description`).toEqual(expect.any(String));
+      expect(tool.inputSchema, `${name} input schema`).toBeDefined();
+      expect(tool.outputSchema, `${name} output schema`).toBeDefined();
+      expect(tool.annotations?.readOnlyHint, `${name} readOnlyHint`).toEqual(expect.any(Boolean));
+      expect(tool.annotations?.destructiveHint, `${name} destructiveHint`).toBe(false);
+      expect(tool.annotations?.openWorldHint, `${name} openWorldHint`).toBe(false);
+      expect(tool._meta?.["openai/toolInvocation/invoking"], `${name} invoking meta`).toEqual(expect.any(String));
+      expect(tool._meta?.["openai/toolInvocation/invoked"], `${name} invoked meta`).toEqual(expect.any(String));
+      expect(tool.execution, `${name} execution descriptor`).toBeUndefined();
+    }
+  });
+
+  it("marks reads and proposal writes with different impact hints", () => {
+    expect(registeredTools.list_projects?.annotations?.readOnlyHint).toBe(true);
+    expect(registeredTools.gsc_get_search_performance?.annotations?.readOnlyHint).toBe(true);
+    expect(registeredTools.update_post?.annotations?.readOnlyHint).toBe(false);
+    expect(registeredTools.create_redirection?.annotations?.readOnlyHint).toBe(false);
+  });
+});

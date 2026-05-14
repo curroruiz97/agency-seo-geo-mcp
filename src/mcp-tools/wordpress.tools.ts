@@ -13,7 +13,7 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
   server.tool(
     "get_post",
     "Obtiene una entrada de WordPress por site_id y post_id. Actualmente devuelve estado de integracion hasta configurar credenciales WordPress.",
-    { site_id: siteId, post_id: z.string().min(1) },
+    { site_id: siteId(), post_id: z.string().min(1) },
     async ({ site_id, post_id }) =>
       jsonToolResponse(integrationNotConfigured(context, "wordpress", "get_post", { site_id, post_id }))
   );
@@ -22,7 +22,7 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
     "list_posts",
     "Lista entradas de WordPress para un sitio. Actualmente publica la accion y devuelve estado hasta configurar WordPress read-only.",
     {
-      site_id: siteId,
+      site_id: siteId(),
       status: z.enum(["publish", "draft", "private", "any"]).optional().default("publish"),
       limit: z.number().int().positive().max(100).optional().default(20)
     },
@@ -33,7 +33,7 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
     "list_pages",
     "Lista paginas de WordPress para un sitio. Actualmente publica la accion y devuelve estado hasta configurar WordPress read-only.",
     {
-      site_id: siteId,
+      site_id: siteId(),
       status: z.enum(["publish", "draft", "private", "any"]).optional().default("publish"),
       limit: z.number().int().positive().max(100).optional().default(20)
     },
@@ -43,14 +43,14 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
   server.tool(
     "get_categories",
     "Lista categorias WordPress de un sitio.",
-    { site_id: siteId, limit: z.number().int().positive().max(100).optional().default(50) },
+    { site_id: siteId(), limit: z.number().int().positive().max(100).optional().default(50) },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "wordpress", "get_categories", input))
   );
 
   server.tool(
     "get_tags",
     "Lista etiquetas WordPress de un sitio.",
-    { site_id: siteId, limit: z.number().int().positive().max(100).optional().default(50) },
+    { site_id: siteId(), limit: z.number().int().positive().max(100).optional().default(50) },
     async (input) => jsonToolResponse(integrationNotConfigured(context, "wordpress", "get_tags", input))
   );
 
@@ -58,11 +58,11 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
     "create_post",
     "Crea una propuesta interna para crear una entrada WordPress. No publica ni modifica WordPress mientras READ_ONLY_MODE este activo.",
     {
-      site_id: siteId,
+      site_id: siteId(),
       title: z.string().min(1),
       content: z.string().min(1),
-      excerpt: optionalText,
-      slug: optionalText,
+      excerpt: optionalText(),
+      slug: optionalText(),
       status: z.enum(["draft", "pending", "publish"]).optional().default("draft")
     },
     async ({ site_id, ...payload }) =>
@@ -82,12 +82,12 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
     "update_post",
     "Crea una propuesta interna para actualizar titulo, contenido, excerpt, slug o estado de una entrada WordPress.",
     {
-      site_id: siteId,
+      site_id: siteId(),
       post_id: z.string().min(1),
-      title: optionalText,
-      content: optionalText,
-      excerpt: optionalText,
-      slug: optionalText,
+      title: optionalText(),
+      content: optionalText(),
+      excerpt: optionalText(),
+      slug: optionalText(),
       status: z.enum(["draft", "pending", "publish", "private"]).optional()
     },
     async ({ site_id, post_id, ...payload }) =>
@@ -108,12 +108,12 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
     "update_page",
     "Crea una propuesta interna para actualizar titulo, contenido, excerpt, slug o estado de una pagina WordPress.",
     {
-      site_id: siteId,
+      site_id: siteId(),
       page_id: z.string().min(1),
-      title: optionalText,
-      content: optionalText,
-      excerpt: optionalText,
-      slug: optionalText,
+      title: optionalText(),
+      content: optionalText(),
+      excerpt: optionalText(),
+      slug: optionalText(),
       status: z.enum(["draft", "pending", "publish", "private"]).optional()
     },
     async ({ site_id, page_id, ...payload }) =>
@@ -134,10 +134,10 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
     "upload_media",
     "Crea una propuesta interna para subir un medio a WordPress. No sube archivos reales hasta configurar el cliente WordPress.",
     {
-      site_id: siteId,
+      site_id: siteId(),
       filename: z.string().min(1),
-      alt_text: optionalText,
-      mime_type: optionalText
+      alt_text: optionalText(),
+      mime_type: optionalText()
     },
     async ({ site_id, ...payload }) =>
       jsonToolResponse(
