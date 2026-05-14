@@ -1,159 +1,207 @@
 # Agency SEO/GEO MCP Roadmap
 
-## Vision
+## Objetivo
 
-Build a central MCP server for an SEO/GEO agency managing WordPress sites with Elementor, Rank Math Pro and SE Ranking.
+Construir un servidor MCP central para gestionar SEO/GEO de proyectos WordPress con Elementor, Rank Math Pro y SE Ranking, empezando por lectura segura y propuestas antes de cualquier escritura.
 
-The architecture is intentionally split:
+## Arquitectura Actual
 
-- **VPS IONOS**: runs the MCP server, Caddy and Docker.
-- **Supabase Cloud**: managed Postgres for project registry, approvals, logs, opportunities and reports.
-- **External systems**: WordPress, Rank Math, Elementor and SE Ranking.
+```text
+ChatGPT
+  -> https://lava.avenuemedia.io/mcp
+  -> Plesk/nginx HTTPS proxy
+  -> PM2 + Node.js en 127.0.0.1:3000
+  -> Agency SEO/GEO MCP
+  -> Supabase Cloud Postgres
+  -> WordPress / Rank Math / SE Ranking en fases posteriores
+```
 
-This keeps the agency websites isolated from the operational database and avoids turning the VPS into both application server and database operations platform.
+Docker y Caddy quedan como alternativa local/infra futura, pero el despliegue real actual es Plesk/nginx + PM2.
 
-## Current State
+## Estado Actual Del Proyecto
 
-`v0.1.0` exists and proves the base server works:
+Completado:
 
-- Express HTTP server.
-- MCP Streamable HTTP endpoint at `/mcp`.
-- Public `/health`.
-- Mock tools: `ping`, `list_projects`, `get_server_status`.
-- Docker Compose runs locally.
+- Servidor Express + TypeScript.
+- MCP Streamable HTTP en `/mcp`.
+- `/health`, `/ready`, `/version`.
+- Tools `ping`, `get_server_status`, `list_projects`.
+- Modularizacion con `AppContext`, dominio `projects`, repositorios mock/Prisma.
+- Prisma schema para Supabase.
+- Migracion inicial y seed piloto en el repo.
+- Supabase project ref `bfidzlbmkpegnndijosw`.
+- GitHub Actions CI.
+- Hardening basico: Helmet, rate limit, request id, errores saneados, `HOST`.
+- Despliegue actual en `https://lava.avenuemedia.io`.
+- Superficie MCP amplia para que ChatGPT detecte acciones:
+  - WordPress
+  - Rank Math
+  - SE Ranking
+  - Google Search Console
+  - Google Analytics
+- Escrituras seguras como propuestas internas/change requests, sin cambios externos.
 
-No real customer data, credentials or write tools exist yet.
+Pendiente inmediato:
 
-## Roadmap Policy
+- Confirmar en VPS que PM2 carga `DATABASE_URL` y `DIRECT_URL`.
+- Confirmar que `/ready` devuelve `database: configured`.
+- Confirmar que Node escucha solo en `127.0.0.1:3000`.
+- Confirmar que la IP publica no expone `:3000`.
+- Conectar ChatGPT a `https://lava.avenuemedia.io/mcp`.
 
-- Start with **Supabase Free** for development and a small pilot.
-- Move to **Supabase Pro** before relying on production client data or approval history.
-- Keep `READ_ONLY_MODE=true` until the approval engine and snapshots are implemented.
-- Do not expose Supabase MCP to production data with write access.
-- Use Supabase MCP only as an internal developer tool, preferably project-scoped and read-only.
+## Politicas De Seguridad
 
-## Phase 1.5: Professional Foundation
+- `READ_ONLY_MODE=true` hasta tener approvals, snapshots y rollback.
+- No guardar credenciales en claro.
+- No devolver credenciales por MCP.
+- No conectar datos reales sin autenticacion compatible.
+- No aplicar cambios WordPress/Rank Math/Elementor hasta fases posteriores.
+- Elementor es solo lectura hasta que exista staging, diff y verificacion.
 
-Goal: turn the scaffold into a deployable foundation before the VPS deployment.
+## Fase 0: Foundation MCP
 
-- Modularize MCP tools by domain.
-- Add an application context for shared dependencies.
-- Harden HTTP security: Helmet, rate limits, request IDs, sanitized production errors.
-- Add production auth guard for `/mcp`.
-- Add `/ready` and `/version`.
-- Add GitHub Actions CI.
-- Add `.gitattributes`, `CHANGELOG.md` and architecture docs.
-- Upgrade test dependencies to remove dev audit issues.
-- Add Docker healthcheck and non-root runtime user.
+Estado: completada.
 
-Acceptance:
+Incluye servidor MCP, endpoints de salud, Docker local, PM2 deployment support, CI y documentacion.
 
-- `npm run check` passes.
-- Docker build passes.
-- `/health`, `/ready`, `/version` and `/mcp` work.
-- Production deployment fails fast if auth is required but missing.
+## Fase 1: Cierre Del Despliegue Actual
 
-## Phase 2: Supabase Project Registry
+Estado: en curso.
 
-Goal: replace mock project data with persistent Supabase Postgres data.
+Objetivo:
 
-- Add Prisma.
-- Add schema for clients, projects, capabilities, credentials, action logs, opportunities, change requests and reports.
-- Use Supabase connection pooler for the app.
-- Use direct connection only for migrations when available.
-- Add seed data for 3 pilot projects.
-- Keep credentials encrypted at application level before writing to DB.
-- Keep `list_projects` read-only.
+- Dejar `lava.avenuemedia.io` listo para conectar ChatGPT.
 
-Acceptance:
+Tareas:
 
-- Prisma generates successfully.
-- Migrations can be applied to Supabase.
-- `list_projects` reads from DB with fallback disabled in production.
-- No credentials are returned by any MCP tool.
+- Verificar variables PM2.
+- Ejecutar `npm run db:generate`, `npm run db:deploy`, `npm run db:seed` en VPS si no se hizo alli.
+- Reiniciar PM2 con `--update-env`.
+- Verificar `/ready` en local y dominio.
+- Confirmar `ss -lntp | grep 3000` mostrando `127.0.0.1:3000`.
+- Probar `/mcp` `tools/list`.
 
-## Phase 3: WordPress Read-Only
+Criterios de aceptacion:
 
-Goal: read WordPress content safely.
+- `https://lava.avenuemedia.io/health` OK.
+- `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
+- `https://lava.avenuemedia.io/version` devuelve `0.2.0`.
+- `https://lava.avenuemedia.io/mcp` lista tools MCP.
+- `http://212.227.90.205:3000` no es accesible desde fuera.
 
-- Implement WordPress client using Application Passwords.
-- Store encrypted credentials in Supabase.
-- Add `wp_get_site_info`, `wp_list_pages`, `wp_list_posts`, `wp_get_content`.
-- Extract headings and internal links.
-- Add integration tests with mocked WordPress responses.
+## Fase 2: Conexion ChatGPT
 
-Acceptance:
+Objetivo:
 
-- Reads real pilot WordPress content.
-- Does not write, publish or delete anything.
+- Crear el connector MCP en ChatGPT usando `https://lava.avenuemedia.io/mcp`.
 
-## Phase 4: SE Ranking Read-Only
+Tareas:
 
-Goal: bring search data into the opportunity engine.
+- Probar `ping`.
+- Probar `get_server_status`.
+- Probar `list_projects`.
+- Probar que `tools/list` muestra la superficie completa de acciones.
+- Probar una accion de escritura segura, por ejemplo `update_post`, y confirmar que crea propuesta sin tocar WordPress.
+- Confirmar si ChatGPT necesita auth adicional.
 
-- Implement `SerankingClient` abstraction.
-- Support SE Ranking MCP/API strategy behind one interface.
-- Cache rankings, audit issues and competitors.
-- Add quick-win detection for positions 4-15.
+Criterios:
 
-Acceptance:
+- ChatGPT detecta las 3 tools.
+- `list_projects` devuelve los 3 proyectos seed desde Supabase.
+- ChatGPT no muestra el MCP vacio en el editor.
 
-- Pilot project returns ranking data.
-- Quick wins are persisted as opportunities.
+## Fase 3: WordPress Read-Only
 
-## Phase 5: Rank Math Read-Only
+Objetivo:
 
-Goal: compare on-page metadata with rankings and content.
+- Leer contenido real de WordPress sin escribir nada.
 
-- Build `Agency Rank Math Bridge` WordPress plugin skeleton.
-- Implement status and GET metadata endpoints first.
-- Add `rankmath_get_meta` and `rankmath_get_head`.
-- Validate title/meta/focus keyword quality.
+Tareas:
 
-Acceptance:
+- Crear modelo de credenciales cifradas.
+- Implementar cifrado en aplicacion.
+- Implementar `WordpressClient`.
+- Tools:
+  - `wp_get_site_info`
+  - `wp_list_pages`
+  - `wp_list_posts`
+  - `wp_get_content`
+- Extraer headings, enlaces internos y HTML renderizado.
 
-- Reads Rank Math metadata from pilot projects.
-- Creates proposals but does not apply changes.
+Criterios:
 
-## Phase 6: Approvals And Controlled Writes
+- Un proyecto piloto puede leer paginas reales.
+- No hay escritura.
+- No se exponen credenciales.
 
-Goal: create a safe path from proposal to execution.
+## Fase 4: SE Ranking Read-Only
 
-- Add change request lifecycle.
-- Add snapshots before writes.
-- Add approve/reject tools.
-- Apply only approved low-risk Rank Math metadata changes.
-- Verify after write and store result.
-- Add rollback where possible.
+Objetivo:
 
-Acceptance:
+- Incorporar rankings y oportunidades basicas.
 
-- `READ_ONLY_MODE=true` blocks writes.
-- Approved low-risk Rank Math updates can be applied to staging/pilot only.
+Tareas:
 
-## Phase 7: GEO And Reporting
+- Implementar `SerankingClient`.
+- Guardar snapshots/cache.
+- Detectar quick wins posiciones 4-15.
+- Persistir oportunidades.
 
-Goal: operational weekly/monthly SEO/GEO insights.
+## Fase 5: Rank Math Read-Only
 
-- Add GEO scoring.
-- Generate answer block, FAQ and schema recommendations.
-- Add weekly global report.
-- Add monthly client report.
+Objetivo:
 
-Acceptance:
+- Leer y evaluar metadata SEO.
 
-- Reports are generated from real stored data.
-- Recommendations distinguish proposal, pending approval, applied and verified states.
+Tareas:
 
-## Phase 8: Elementor Safe Analysis
+- Evaluar primero REST/headless disponible.
+- Crear plugin bridge solo si hace falta para Rank Math/snapshots.
+- Implementar lectura de title, description, focus keyword y head.
 
-Goal: analyze Elementor without touching live layout data.
+## Fase 6: Plugin WordPress Bridge
 
-- Detect Elementor pages.
-- Extract headings, text blocks, CTAs and image alt status from rendered HTML.
-- Create section-level proposals.
+Objetivo:
 
-Acceptance:
+- Crear un plugin pequeno y seguro, no un plugin gigante.
 
-- Elementor remains read-only.
-- Changes are suggestions for humans, not automatic writes.
+Endpoints futuros:
+
+```text
+GET  /wp-json/agency-seo/v1/status
+GET  /wp-json/agency-seo/v1/rankmath/meta/{post_id}
+POST /wp-json/agency-seo/v1/snapshots/{post_id}
+GET  /wp-json/agency-seo/v1/elementor/status/{post_id}
+```
+
+Escritura se deja para otra fase.
+
+## Fase 7: Approvals Y Escritura Controlada
+
+Objetivo:
+
+- Pasar de propuesta a cambio aplicado con aprobacion humana.
+
+Tareas:
+
+- Change requests.
+- Snapshots.
+- Approval/reject.
+- Aplicar solo cambios Rank Math low-risk.
+- Verificar despues de aplicar.
+- Rollback cuando sea posible.
+
+## Fase 8: GEO, Reporting Y Escalado
+
+Objetivo:
+
+- Informes SEO/GEO y priorizacion semanal.
+
+Tareas:
+
+- GEO score.
+- Answer blocks.
+- FAQ recommendations.
+- Weekly global report.
+- Monthly client report.
+- Escalar a proyectos reales.
