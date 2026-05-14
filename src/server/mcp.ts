@@ -18,6 +18,8 @@ export function createMcpServer(context: AppContext) {
 
 export async function handleMcpRequest(context: AppContext, req: Request, res: Response) {
   const server = createMcpServer(context);
+  // Force Accept header so SDK's strict negotiation accepts any MCP client
+  req.headers["accept"] = "application/json, text/event-stream";
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
