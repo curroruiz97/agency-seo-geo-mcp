@@ -15,4 +15,19 @@ export function registerTools(server: McpServer, context: AppContext) {
   registerSerankingTools(server, context);
   registerGoogleSearchConsoleTools(server, context);
   registerGoogleAnalyticsTools(server, context);
+
+  // The MCP SDK hardcodes execution.taskSupport = 'forbidden' for every tool
+  // registered via server.tool() / server.registerTool(). Some MCP clients (e.g.
+  // ChatGPT Agent Studio) hide tools marked as 'forbidden'. We relax them to
+  // 'optional' so the action surface is discoverable.
+  const registered = (server as unknown as {
+    _registeredTools?: Record<string, { execution?: { taskSupport?: string } }>;
+  })._registeredTools;
+  if (registered) {
+    for (const tool of Object.values(registered)) {
+      if (tool.execution) {
+        tool.execution.taskSupport = "optional";
+      }
+    }
+  }
 }
