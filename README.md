@@ -121,7 +121,7 @@ HOST=127.0.0.1
 PORT=3000
 PUBLIC_BASE_URL=https://lava.avenuemedia.io
 READ_ONLY_MODE=true
-ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com
+ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com,https://claude.ai,https://claude.com
 REQUIRE_MCP_AUTH=false
 ALLOW_PUBLIC_MCP_DISCOVERY=true
 MCP_BEARER_TOKEN=
@@ -161,26 +161,30 @@ Tambien se puede reiniciar desde el panel Node.js de Plesk con `Restart App`.
 6. Confirmar que `http://212.227.90.205:3000` no responde desde fuera.
 7. Crear un conector nuevo en ChatGPT si el conector anterior sigue cacheado con 0 acciones.
 
-## Si ChatGPT Muestra 0 Acciones
+## Conectar Desde Claude
 
-Primero comprobar que el servidor lista tools:
+El servidor cumple el protocolo MCP (Streamable HTTP) y se puede usar como conector remoto en Claude.ai y Claude Desktop.
+
+Pasos en Claude.ai:
+
+1. Ir a Settings → Connectors → Add custom connector.
+2. URL: `https://lava.avenuemedia.io/mcp`.
+3. Si `REQUIRE_MCP_AUTH=true`, pegar el bearer token en el campo de autenticacion.
+4. Guardar. Claude llamara `initialize` y `tools/list` y debera mostrar las 41 acciones.
+
+Verificacion manual (igual que en ChatGPT, pero usando un Origin de Claude):
 
 ```bash
 curl -s https://lava.avenuemedia.io/mcp \
+  -H "origin: https://claude.ai" \
   -H "content-type: application/json" \
   -H "accept: application/json, text/event-stream" \
   --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-Debe devolver 41 tools. Si el curl es correcto pero Builder sigue mostrando 0 acciones, borrar el conector antiguo y crear uno nuevo apuntando a `https://lava.avenuemedia.io/mcp`, porque Builder puede quedarse con metadata cacheada.
+Notas:
 
-Si el endpoint `/mcp` tiene bearer token, mantener `ALLOW_PUBLIC_MCP_DISCOVERY=true`. Esto permite que Builder lea `initialize` y `tools/list` sin credenciales para indexar acciones, pero mantiene `tools/call` protegido con `MCP_BEARER_TOKEN`.
-
-## Limites Actuales
-
-- Hay tools publicadas para WordPress, SE Ranking, Rank Math, GSC y GA, pero las integraciones reales siguen pendientes.
-- No hay plugin WordPress activo.
-- Las escrituras publicadas crean propuestas internas; no ejecutan cambios externos.
-- No hay datos reales de clientes.
-
-La siguiente fase es conectar ChatGPT al MCP y, despues, implementar WordPress read-only.
+- `ALLOWED_ORIGINS` debe incluir `https://claude.ai` y `https://claude.com` (ya viene por defecto).
+- El widget UI `ui://widget/avenue-ai-v1.html` es una extension de ChatGPT Apps y Claude no lo renderiza, pero las tools funcionan normalmente.
+- Las metadatos `openai/*` se ignoran en Claude sin romper nada.
+- Para distribucion publica via direc

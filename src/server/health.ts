@@ -36,6 +36,7 @@ export interface RootPayload {
     transport: "streamable_http";
     method: "JSON-RPC 2.0";
     discovery: "tools/list";
+    compatibleClients: string[];
   };
   timestamp: string;
 }
@@ -58,7 +59,8 @@ export function getRootPayload(config: Pick<AppConfig, "PUBLIC_BASE_URL" | "READ
     mcp: {
       transport: "streamable_http",
       method: "JSON-RPC 2.0",
-      discovery: "tools/list"
+      discovery: "tools/list",
+      compatibleClients: ["claude.ai", "claude-desktop", "chatgpt-builder", "mcp-inspector"]
     },
     timestamp: new Date().toISOString()
   };

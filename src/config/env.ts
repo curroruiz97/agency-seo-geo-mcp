@@ -12,7 +12,7 @@ const envSchema = z.object({
     .transform((value) => value.toLowerCase() === "true"),
   ALLOWED_ORIGINS: z
     .string()
-    .default("https://chatgpt.com,https://chat.openai.com")
+    .default("https://chatgpt.com,https://chat.openai.com,https://claude.ai,https://claude.com")
     .transform((value) =>
       value
         .split(",")

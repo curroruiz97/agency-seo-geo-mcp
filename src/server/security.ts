@@ -21,10 +21,12 @@ export function validateOrigin(config: Pick<AppConfig, "ALLOWED_ORIGINS">) {
 const publicDiscoveryMethods = new Set([
   "initialize",
   "notifications/initialized",
+  "ping",
   "tools/list",
   "resources/list",
   "resources/read",
-  "resources/templates/list"
+  "resources/templates/list",
+  "prompts/list"
 ]);
 
 export function requireMcpBearerToken(config: Pick<AppConfig, "MCP_BEARER_TOKEN" | "ALLOW_PUBLIC_MCP_DISCOVERY">) {
