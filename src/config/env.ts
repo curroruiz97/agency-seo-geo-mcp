@@ -31,7 +31,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.string().optional().default(""),
   DIRECT_URL: z.string().optional().default(""),
-  DIRECT_DATABASE_URL: z.string().optional().default("")
+  DIRECT_DATABASE_URL: z.string().optional().default(""),
+  SECRETS_MASTER_KEY: z.string().optional().default("")
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

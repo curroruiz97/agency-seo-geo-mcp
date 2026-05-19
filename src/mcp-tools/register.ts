@@ -9,6 +9,8 @@ import { registerRankMathTools } from "./rankmath.tools.js";
 import { registerSerankingTools } from "./seranking.tools.js";
 import { registerSystemTools } from "./system.tools.js";
 import { registerWordPressTools } from "./wordpress.tools.js";
+import { registerOrchestrationTools } from "./orchestration.tools.js";
+import { registerChangeRequestTools } from "./changeRequests.tools.js";
 
 interface ToolAnnotations {
   readOnlyHint: boolean;
@@ -40,7 +42,10 @@ const acronymTitles: Record<string, string> = {
 };
 
 const readOnlyPrefixes = ["get_", "list_", "gsc_get_", "gsc_list_", "ga_get_", "ga_list_", "seranking_get_"];
-const readOnlyNames = new Set(["ping", "get_server_status", "list_projects", "list_sites", "search", "fetch"]);
+const readOnlyNames = new Set([
+  "ping", "get_server_status", "list_projects", "list_sites", "search", "fetch",
+  "list_change_requests", "list_opportunities", "list_extraction_runs"
+]);
 
 export function registerTools(server: McpServer, context: AppContext) {
   registerSystemTools(server, context);
@@ -51,7 +56,20 @@ export function registerTools(server: McpServer, context: AppContext) {
   registerSerankingTools(server, context);
   registerGoogleSearchConsoleTools(server, context);
   registerGoogleAnalyticsTools(server, context);
+  registerOrchestrationTools(server, context);
+  registerChangeRequestTools(server, context);
   normalizeToolDescriptors(server);
+}
+
+function isReadOnlyTool(name: string) {
+  return readOnlyNames.has(name) || readOnlyPrefixes.some((prefix) => name.startsWith(prefix));
+}
+
+function titleFromName(name: string) {
+  return name
+    .split("_")
+    .map((part) => acronymTitles[part] ?? part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function normalizeToolDescriptors(server: McpServer) {
@@ -93,18 +111,6 @@ function normalizeToolDescriptors(server: McpServer) {
         existingMeta["openai/toolInvocation/invoked"] ?? (readOnly ? "Datos consultados" : "Propuesta creada")
     };
 
-    // ChatGPT/Builder currently indexes normal MCP tools, not SDK experimental task descriptors.
     delete tool.execution;
   }
-}
-
-function isReadOnlyTool(name: string) {
-  return readOnlyNames.has(name) || readOnlyPrefixes.some((prefix) => name.startsWith(prefix));
-}
-
-function titleFromName(name: string) {
-  return name
-    .split("_")
-    .map((part) => acronymTitles[part] ?? part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }

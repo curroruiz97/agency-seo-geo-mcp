@@ -254,3 +254,181 @@ model Report {
   @@index([reportType])
   @@map("reports")
 }
+
+// ============================================================================
+// EXTRACT layer: data pulled from SE Ranking (idempotent, snapshot history)
+// ============================================================================
+
+enum ExtractionStatus {
+  pending
+  running
+  completed
+  failed
+}
+
+enum ExtractionSource {
+  seranking
+  wordpress
+  rankmath
+  gsc
+  ga
+  manual
+}
+
+model ExtractionRun {
+  id          String           @id @default(uuid()) @db.Uuid
+  projectId   String           @map("project_id") @db.Uuid
+  source      ExtractionSource
+  status      ExtractionStatus @default(pending)
+  startedAt   DateTime         @default(now()) @map("started_at")
+  finishedAt  DateTime?        @map("finished_at")
+  stats       Json?
+  errorMessage String?         @map("error_message")
+
+  @@index([projectId])
+  @@index([source])
+  @@index([status])
+  @@map("extraction_runs")
+}
+
+model Keyword {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  keyword         String
+  searchVolume    Int?     @map("search_volume")
+  difficulty      Int?
+  intent          String?
+  cpc             Decimal?
+  language        String?
+  country         String?
+  serankingId     String?  @map("seranking_id")
+  groupName       String?  @map("group_name")
+  firstSeenAt     DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at")
+
+  snapshots KeywordSnapshot[]
+
+  @@unique([projectId, keyword])
+  @@index([projectId])
+  @@index([serankingId])
+  @@map("keywords")
+}
+
+model KeywordSnapshot {
+  id                  String   @id @default(uuid()) @db.Uuid
+  keywordId           String   @map("keyword_id") @db.Uuid
+  capturedAt          DateTime @default(now()) @map("captured_at")
+  position            Int?
+  previousPosition    Int?     @map("previous_position")
+  url                 String?
+  device              String?
+  location            String?
+  changeVsPrevious    Int?     @map("change_vs_previous")
+  inTop3              Boolean  @default(false) @map("in_top_3")
+  inTop10             Boolean  @default(false) @map("in_top_10")
+  inOpportunityWindow Boolean  @default(false) @map("in_opportunity_window")
+
+  keyword Keyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@index([keywordId])
+  @@index([capturedAt])
+  @@index([inOpportunityWindow])
+  @@map("keyword_snapshots")
+}
+
+enum AuditSeverity {
+  info
+  notice
+  warning
+  error
+  critical
+}
+
+model AuditFinding {
+  id            String        @id @default(uuid()) @db.Uuid
+  projectId     String        @map("project_id") @db.Uuid
+  category      String
+  ruleCode      String        @map("rule_code")
+  severity      AuditSeverity
+  url           String?
+  message       String
+  details       Json?
+  firstSeenAt   DateTime      @default(now()) @map("first_seen_at")
+  lastSeenAt    DateTime      @default(now()) @map("last_seen_at")
+  resolvedAt    DateTime?     @map("resolved_at")
+
+  @@unique([projectId, ruleCode, url])
+  @@index([projectId])
+  @@index([severity])
+  @@map("audit_findings")
+}
+
+model Competitor {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  domain          String
+  visibilityScore Decimal? @map("visibility_score")
+  sharedKeywords  Int?     @map("shared_keywords")
+  exclusiveKeywords Int?   @map("exclusive_keywords")
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at")
+
+  contentGaps ContentGap[]
+
+  @@unique([projectId, domain])
+  @@index([projectId])
+  @@map("competitors")
+}
+
+model ContentGap {
+  id           String   @id @default(uuid()) @db.Uuid
+  projectId    String   @map("project_id") @db.Uuid
+  competitorId String?  @map("competitor_id") @db.Uuid
+  keyword      String
+  searchVolume Int?     @map("search_volume")
+  difficulty   Int?
+  competitorPosition Int? @map("competitor_position")
+  ourPosition  Int?     @map("our_position")
+  gapType      String   @map("gap_type")
+  detectedAt   DateTime @default(now()) @map("detected_at")
+
+  competitor Competitor? @relation(fields: [competitorId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([competitorId])
+  @@map("content_gaps")
+}
+
+enum ContentDraftStatus {
+  proposed
+  approved
+  generating
+  ready
+  published
+  rejected
+}
+
+model ContentDraft {
+  id              String             @id @default(uuid()) @db.Uuid
+  projectId       String             @map("project_id") @db.Uuid
+  changeRequestId String?            @unique @map("change_request_id") @db.Uuid
+  topic           String
+  primaryKeyword  String             @map("primary_keyword")
+  secondaryKeywords String[]         @map("secondary_keywords")
+  intent          String?
+  targetUrl       String?            @map("target_url")
+  outline         Json?
+  contentHtml     String?            @map("content_html")
+  metaTitle       String?            @map("meta_title")
+  metaDescription String?            @map("meta_description")
+  faqSchema       Json?              @map("faq_schema")
+  internalLinks   Json?              @map("internal_links")
+  status          ContentDraftStatus @default(proposed)
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  publishedAt     DateTime?          @map("published_at")
+  wpPostId        String?            @map("wp_post_id")
+
+  @@index([projectId])
+  @@index([status])
+  @@map("content_drafts")
+}

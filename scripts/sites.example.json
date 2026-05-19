@@ -1,0 +1,51 @@
+[
+  {
+    "clientName": "Cliente Demo",
+    "clientCompany": "Cliente Demo SL",
+    "clientEmail": "contacto@clientedemo.com",
+    "name": "Restaurante Las Acacias",
+    "domain": "lasacacias.com",
+    "wordpressUrl": "https://lasacacias.com",
+    "serankingProjectId": "1234567",
+    "language": "es",
+    "targetCountry": "ES",
+    "targetCity": "Madrid",
+    "sector": "restauracion",
+    "businessType": "local",
+    "permissionLevel": "proposal_only",
+    "status": "active",
+    "capabilities": {
+      "canCreateDrafts": true,
+      "canUpdateRankmath": true,
+      "canUpdateElementor": false,
+      "canPublish": false
+    },
+    "credentials": {
+      "wordpress": {
+        "username": "seo-bot",
+        "applicationPassword": "abcd EFGH 1234 wxyz 5678 ZZZZ"
+      },
+      "seranking": {
+        "apiKey": "sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    }
+  },
+  {
+    "clientName": "Cliente Demo",
+    "clientCompany": "Cliente Demo SL",
+    "name": "Hotel Mediterráneo",
+    "domain": "hotelmediterraneo.example",
+    "wordpressUrl": "https://hotelmediterraneo.example",
+    "serankingProjectId": "1234568",
+    "language": "es",
+    "targetCountry": "ES",
+    "sector": "turismo",
+    "permissionLevel": "proposal_only",
+    "credentials": {
+      "wordpress": {
+        "username": "seo-bot",
+        "applicationPassword": "abcd EFGH 1234 wxyz 5678 ZZZZ"
+      }
+    }
+  }
+]
