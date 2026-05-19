@@ -11,6 +11,7 @@ import { registerSystemTools } from "./system.tools.js";
 import { registerWordPressTools } from "./wordpress.tools.js";
 import { registerOrchestrationTools } from "./orchestration.tools.js";
 import { registerChangeRequestTools } from "./changeRequests.tools.js";
+import { registerHealthTools } from "./health.tools.js";
 
 interface ToolAnnotations {
   readOnlyHint: boolean;
@@ -41,10 +42,11 @@ const acronymTitles: Record<string, string> = {
   rankmath: "Rank Math"
 };
 
-const readOnlyPrefixes = ["get_", "list_", "gsc_get_", "gsc_list_", "ga_get_", "ga_list_", "seranking_get_"];
+const readOnlyPrefixes = ["get_", "list_", "gsc_get_", "gsc_list_", "ga_get_", "ga_list_", "seranking_get_", "check_"];
 const readOnlyNames = new Set([
   "ping", "get_server_status", "list_projects", "list_sites", "search", "fetch",
-  "list_change_requests", "list_opportunities", "list_extraction_runs"
+  "list_change_requests", "list_opportunities", "list_extraction_runs",
+  "check_site_health", "check_all_sites_health"
 ]);
 
 export function registerTools(server: McpServer, context: AppContext) {
@@ -58,6 +60,7 @@ export function registerTools(server: McpServer, context: AppContext) {
   registerGoogleAnalyticsTools(server, context);
   registerOrchestrationTools(server, context);
   registerChangeRequestTools(server, context);
+  registerHealthTools(server, context);
   normalizeToolDescriptors(server);
 }
 

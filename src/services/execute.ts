@@ -194,7 +194,7 @@ export class ExecuteService {
       });
     }
 
-    const created = await elementor.createPostWithElementor({
+    const created = await elementor.createPost({
       title: draft.metaTitle ?? draft.topic,
       slug: undefined,
       status: "draft",
@@ -205,7 +205,7 @@ export class ExecuteService {
       where: { id: draft.id },
       data: { status: "ready", wpPostId: String(created.id) }
     });
-    return { postId: created.id, draftId: draft.id, previewLink: created.previewLink };
+    return { postId: created.id, draftId: draft.id, previewLink: created.link };
   }
 
   private async applyUpdatePost(project: { id: string }, cr: { afterPayload: unknown; targetEntityId: string | null; targetEntityType: string }): Promise<Record<string, unknown>> {

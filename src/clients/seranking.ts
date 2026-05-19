@@ -1,237 +1,255 @@
 import { HttpClient } from "./http.js";
 import type { Logger } from "pino";
 
-/**
- * SE Ranking API v1 client.
- * Docs: https://seranking.com/api.html
- * Auth: bearer token (Api-Key header).
- *
- * Endpoints used:
- * - GET /sites                                    → list projects
- * - GET /sites/{siteId}/positions                 → keyword rankings (current)
- * - GET /sites/{siteId}/keywords                  → tracked keywords with volume/difficulty
- * - GET /sites/{siteId}/audit/issues              → site audit findings
- * - GET /sites/{siteId}/competitors               → competitor research
- * - GET /sites/{siteId}/backlinks                 → backlinks
- *
- * NB: endpoint paths follow SE Ranking's public API. If the user's plan exposes
- * a slightly different shape we centralise the mapping here.
- */
+const PROJECT_RATE_LIMIT_PER_MIN = 240;
+const DATA_RATE_LIMIT_PER_MIN = 480;
 
 export interface SerankingProjectSummary {
-  id: string;
-  name: string;
-  domain: string;
-  searchEngine?: string;
-  language?: string;
-  location?: string;
-  groupName?: string;
+  id: number; title: string; name: string; groupId?: number; isActive?: boolean; checkFreq?: string;
 }
-
+export interface SerankingSearchEngine {
+  id: number; searchEngine: string; region?: string; language?: string; device?: string; isActive?: boolean;
+}
 export interface SerankingKeyword {
-  id: string;
-  keyword: string;
-  searchVolume?: number;
-  difficulty?: number;
-  cpc?: number;
-  intent?: string;
-  groupName?: string;
+  id: string; name: string; groupId?: string; link?: string | null; firstCheckDate?: string | null; tags?: string[];
 }
-
-export interface SerankingPosition {
-  keywordId: string;
-  keyword: string;
-  position: number | null;
-  previousPosition: number | null;
-  url?: string;
-  date: string;
-  device?: string;
-  searchEngine?: string;
+export interface SerankingPositionEntry {
+  date: string; pos: number | null; change?: number | null; isMap?: boolean;
+  mapPosition?: number | null; paidPosition?: number | null;
+  landingPages?: Array<{ url: string; date: string }>;
+  serpFeatures?: Record<string, boolean>;
+  volume?: number; competition?: number;
 }
-
-export interface SerankingAuditIssue {
-  ruleCode: string;
-  category: string;
-  severity: "info" | "notice" | "warning" | "error" | "critical";
-  message: string;
-  affectedUrl?: string;
-  details?: Record<string, unknown>;
+export interface SerankingPositionGroup {
+  siteEngineId: number;
+  keywords: Array<{ id: string; name: string; positions: SerankingPositionEntry[] }>;
 }
-
 export interface SerankingCompetitor {
-  domain: string;
-  visibilityScore?: number;
-  sharedKeywords?: number;
-  exclusiveKeywords?: number;
+  id: number; name: string; url: string; domainTrust?: number;
+}
+export interface SerankingAuditIssue {
+  code: string; severity: "error" | "warning" | "notice" | "info"; category: string;
+  message: string; affectedUrl?: string; snippet?: unknown; metric?: Record<string, unknown>;
+}
+export interface SerankingAuditReport {
+  auditId: number; scorePercent?: number; totalPages?: number; totalErrors?: number;
+  totalWarnings?: number; totalNotices?: number;
+  sections: Array<{ section: string; issues: SerankingAuditIssue[] }>;
 }
 
-export interface SerankingClientOptions {
-  apiKey: string;
-  baseUrl?: string;
-  logger?: Logger;
-  rateLimitPerMinute?: number;
+export class SerankingClientError extends Error {
+  constructor(public code: number, public description: string, public original?: unknown) {
+    super(`SE Ranking error ${code}: ${description}`);
+    this.name = "SerankingClientError";
+  }
 }
 
-export class SerankingClient {
+function parseErrorEnvelope(err: unknown): SerankingClientError | null {
+  if (err && typeof err === "object" && "body" in err) {
+    try {
+      const parsed = JSON.parse((err as { body: string }).body);
+      if (parsed?.error?.description) {
+        return new SerankingClientError(Number(parsed.error.code ?? 0), String(parsed.error.description), err);
+      }
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+function asArray(v: unknown): unknown[] { return Array.isArray(v) ? v : []; }
+
+export interface SerankingProjectClientOptions {
+  apiKey: string; baseUrl?: string; logger?: Logger;
+}
+
+export class SerankingProjectClient {
   private http: HttpClient;
-
-  constructor(opts: SerankingClientOptions) {
+  constructor(opts: SerankingProjectClientOptions) {
     this.http = new HttpClient({
       baseUrl: opts.baseUrl ?? "https://api4.seranking.com",
       defaultHeaders: { Authorization: `Token ${opts.apiKey}` },
-      rateLimitPerMinute: opts.rateLimitPerMinute ?? 120,
+      rateLimitPerMinute: PROJECT_RATE_LIMIT_PER_MIN,
       logger: opts.logger
     });
   }
-
-  async listProjects(): Promise<SerankingProjectSummary[]> {
-    const raw = await this.http.request<unknown>("GET", "/sites");
-    return normalizeProjects(raw);
+  async listSites(): Promise<SerankingProjectSummary[]> {
+    const raw = await this.call<unknown>("GET", "/sites");
+    return asArray(raw).map((it) => {
+      const o = it as Record<string, unknown>;
+      return {
+        id: Number(o["id"]),
+        title: String(o["title"] ?? ""),
+        name: String(o["name"] ?? ""),
+        groupId: typeof o["group_id"] === "number" ? (o["group_id"] as number) : undefined,
+        isActive: o["is_active"] === 1 || o["is_active"] === true,
+        checkFreq: typeof o["check_freq"] === "string" ? (o["check_freq"] as string) : undefined
+      };
+    });
   }
-
-  async listKeywords(siteId: string): Promise<SerankingKeyword[]> {
-    const raw = await this.http.request<unknown>("GET", `/sites/${siteId}/keywords`);
-    return normalizeKeywords(raw);
+  async listSearchEngines(siteId: number): Promise<SerankingSearchEngine[]> {
+    const raw = await this.call<unknown>("GET", `/sites/${siteId}/search-engines`);
+    return asArray(raw).map((it) => {
+      const o = it as Record<string, unknown>;
+      return {
+        id: Number(o["id"]),
+        searchEngine: String(o["search_engine"] ?? o["engine"] ?? ""),
+        region: typeof o["region"] === "string" ? (o["region"] as string) : undefined,
+        language: typeof o["language"] === "string" ? (o["language"] as string) : undefined,
+        device: typeof o["device"] === "string" ? (o["device"] as string) : undefined,
+        isActive: o["is_active"] === 1 || o["is_active"] === true
+      };
+    });
   }
-
-  async getCurrentPositions(siteId: string, opts?: { date?: string; device?: string }): Promise<SerankingPosition[]> {
-    const raw = await this.http.request<unknown>(
-      "GET",
-      `/sites/${siteId}/positions`,
-      { query: { date: opts?.date, device: opts?.device } }
-    );
-    return normalizePositions(raw);
+  async listKeywords(siteId: number, siteEngineId: number): Promise<SerankingKeyword[]> {
+    const raw = await this.call<unknown>("GET", `/sites/${siteId}/keywords`, { query: { site_engine_id: siteEngineId } });
+    return asArray(raw).map((it) => {
+      const o = it as Record<string, unknown>;
+      return {
+        id: String(o["id"] ?? ""),
+        name: String(o["name"] ?? ""),
+        groupId: o["group_id"] !== undefined && o["group_id"] !== null ? String(o["group_id"]) : undefined,
+        link: o["link"] as string | null | undefined,
+        firstCheckDate: (o["first_check_date"] as string | null | undefined) ?? null,
+        tags: Array.isArray(o["tags"]) ? (o["tags"] as string[]) : []
+      };
+    });
   }
-
-  async getAuditIssues(siteId: string): Promise<SerankingAuditIssue[]> {
-    const raw = await this.http.request<unknown>("GET", `/sites/${siteId}/audit/issues`);
-    return normalizeAuditIssues(raw);
+  async getPositions(siteId: number, opts?: { siteEngineId?: number; dateFrom?: string; dateTo?: string; withLandingPages?: boolean; withSerpFeatures?: boolean; }): Promise<SerankingPositionGroup[]> {
+    const today = new Date().toISOString().slice(0, 10);
+    const raw = await this.call<unknown>("GET", `/sites/${siteId}/positions`, {
+      query: {
+        site_engine_id: opts?.siteEngineId,
+        date_from: opts?.dateFrom ?? today,
+        date_to: opts?.dateTo ?? today,
+        with_landing_pages: opts?.withLandingPages ? 1 : undefined,
+        with_serp_features: opts?.withSerpFeatures ? 1 : undefined
+      }
+    });
+    return asArray(raw).map((it) => {
+      const o = it as Record<string, unknown>;
+      return {
+        siteEngineId: Number(o["site_engine_id"] ?? o["siteEngineId"] ?? 0),
+        keywords: asArray(o["keywords"]).map((k) => {
+          const kw = k as Record<string, unknown>;
+          return {
+            id: String(kw["id"] ?? ""),
+            name: String(kw["name"] ?? ""),
+            positions: asArray(kw["positions"]).map((p) => {
+              const pe = p as Record<string, unknown>;
+              return {
+                date: String(pe["date"] ?? ""),
+                pos: pe["pos"] === null ? null : Number(pe["pos"] ?? 0),
+                change: pe["change"] !== undefined ? Number(pe["change"]) : null,
+                isMap: Boolean(pe["is_map"]),
+                mapPosition: pe["map_position"] !== undefined ? Number(pe["map_position"]) : null,
+                paidPosition: pe["paid_position"] !== undefined ? Number(pe["paid_position"]) : null,
+                landingPages: Array.isArray(pe["landing_pages"]) ? (pe["landing_pages"] as Array<{ url: string; date: string }>) : undefined,
+                serpFeatures: typeof pe["serp_features"] === "object" ? (pe["serp_features"] as Record<string, boolean>) : undefined,
+                volume: typeof pe["volume"] === "number" ? (pe["volume"] as number) : undefined,
+                competition: typeof pe["competition"] === "number" ? (pe["competition"] as number) : undefined
+              };
+            })
+          };
+        })
+      };
+    });
   }
-
-  async getCompetitors(siteId: string): Promise<SerankingCompetitor[]> {
-    const raw = await this.http.request<unknown>("GET", `/sites/${siteId}/competitors`);
-    return normalizeCompetitors(raw);
+  async listCompetitors(siteId: number): Promise<SerankingCompetitor[]> {
+    const raw = await this.call<unknown>("GET", `/sites/${siteId}/competitors`);
+    return asArray(raw).map((it) => {
+      const o = it as Record<string, unknown>;
+      return {
+        id: Number(o["id"]),
+        name: String(o["name"] ?? o["url"] ?? ""),
+        url: String(o["url"] ?? ""),
+        domainTrust: typeof o["domain_trust"] === "number" ? (o["domain_trust"] as number) : undefined
+      };
+    });
   }
-
-  async getBacklinks(siteId: string, opts?: { limit?: number }): Promise<unknown[]> {
-    const raw = await this.http.request<unknown>(
-      "GET",
-      `/sites/${siteId}/backlinks`,
-      { query: { limit: opts?.limit ?? 100 } }
-    );
-    return Array.isArray(raw) ? raw : asArray((raw as { data?: unknown[] })?.data);
+  async listBacklinks(siteId: number): Promise<unknown[]> {
+    const raw = await this.call<unknown>("GET", `/backlinks/${siteId}`);
+    return asArray(raw);
+  }
+  private async call<T>(method: "GET" | "POST" | "PUT" | "DELETE", path: string, opts?: { query?: Record<string, string | number | boolean | undefined>; body?: unknown }): Promise<T> {
+    try { return await this.http.request<T>(method, path, opts); }
+    catch (err) { const wrapped = parseErrorEnvelope(err); if (wrapped) throw wrapped; throw err; }
   }
 }
 
-// ---------- normalisers ----------
-// SE Ranking response shapes vary by endpoint version; we defensively read
-// camelCase, snake_case and nested data envelopes.
-
-function asArray(v: unknown): unknown[] {
-  return Array.isArray(v) ? v : [];
+export interface SerankingDataClientOptions {
+  apiKey: string; baseUrl?: string; logger?: Logger;
 }
 
-function getStr(o: Record<string, unknown>, ...keys: string[]): string | undefined {
-  for (const k of keys) {
-    const v = o[k];
-    if (typeof v === "string" && v.length > 0) return v;
-    if (typeof v === "number") return String(v);
+export class SerankingDataClient {
+  private http: HttpClient;
+  constructor(opts: SerankingDataClientOptions) {
+    this.http = new HttpClient({
+      baseUrl: opts.baseUrl ?? "https://api.seranking.com/v1",
+      defaultHeaders: { Authorization: `Token ${opts.apiKey}` },
+      rateLimitPerMinute: DATA_RATE_LIMIT_PER_MIN,
+      logger: opts.logger
+    });
   }
-  return undefined;
-}
-
-function getInt(o: Record<string, unknown>, ...keys: string[]): number | undefined {
-  for (const k of keys) {
-    const v = o[k];
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
+  async listAudits(): Promise<Array<{ id: number; url: string; status: string }>> {
+    const raw = await this.call<unknown>("GET", "/site-audit/audits");
+    return asArray(raw).map((it) => {
+      const o = it as Record<string, unknown>;
+      return { id: Number(o["id"]), url: String(o["url"] ?? ""), status: String(o["status"] ?? "") };
+    });
   }
-  return undefined;
-}
-
-function normalizeProjects(raw: unknown): SerankingProjectSummary[] {
-  const list = Array.isArray(raw) ? raw : asArray((raw as { sites?: unknown[]; data?: unknown[] })?.sites ?? (raw as { data?: unknown[] })?.data);
-  return list.map((it) => {
-    const o = (it as Record<string, unknown>) ?? {};
+  async getAuditStatus(auditId: number): Promise<{ status: string; progress?: number }> {
+    const raw = await this.call<Record<string, unknown>>("GET", "/site-audit/audits/status", { query: { audit_id: auditId } });
     return {
-      id: String(getStr(o, "id", "site_id", "siteId") ?? ""),
-      name: String(getStr(o, "name", "title", "project_name") ?? ""),
-      domain: String(getStr(o, "domain", "url", "site_url") ?? ""),
-      searchEngine: getStr(o, "search_engine", "searchEngine"),
-      language: getStr(o, "language", "lang"),
-      location: getStr(o, "location", "country"),
-      groupName: getStr(o, "group", "group_name", "groupName")
+      status: String(raw["status"] ?? ""),
+      progress: typeof raw["progress"] === "number" ? (raw["progress"] as number) : undefined
     };
-  }).filter((p) => p.id);
-}
-
-function normalizeKeywords(raw: unknown): SerankingKeyword[] {
-  const list = Array.isArray(raw) ? raw : asArray((raw as { keywords?: unknown[]; data?: unknown[] })?.keywords ?? (raw as { data?: unknown[] })?.data);
-  return list.map((it) => {
-    const o = (it as Record<string, unknown>) ?? {};
-    const cpcRaw = o["cpc"];
+  }
+  async getAuditReport(auditId: number): Promise<SerankingAuditReport> {
+    const raw = await this.call<Record<string, unknown>>("GET", "/site-audit/audits/report", { query: { audit_id: auditId } });
+    const sections = asArray(raw["sections"]).map((s) => {
+      const sec = s as Record<string, unknown>;
+      return {
+        section: String(sec["name"] ?? sec["section"] ?? "general"),
+        issues: asArray(sec["checks"] ?? sec["issues"]).map(normaliseIssue)
+      };
+    });
     return {
-      id: String(getStr(o, "id", "keyword_id") ?? ""),
-      keyword: String(getStr(o, "keyword", "name", "query") ?? ""),
-      searchVolume: getInt(o, "search_volume", "volume", "searchVolume"),
-      difficulty: getInt(o, "difficulty", "kw_difficulty", "keyword_difficulty"),
-      cpc: typeof cpcRaw === "number" ? cpcRaw : undefined,
-      intent: getStr(o, "intent", "search_intent"),
-      groupName: getStr(o, "group", "group_name", "groupName")
+      auditId,
+      scorePercent: typeof raw["score_percent"] === "number" ? (raw["score_percent"] as number) : undefined,
+      totalPages: typeof raw["total_pages"] === "number" ? (raw["total_pages"] as number) : undefined,
+      totalErrors: typeof raw["total_errors"] === "number" ? (raw["total_errors"] as number) : undefined,
+      totalWarnings: typeof raw["total_warnings"] === "number" ? (raw["total_warnings"] as number) : undefined,
+      totalNotices: typeof raw["total_notices"] === "number" ? (raw["total_notices"] as number) : undefined,
+      sections
     };
-  }).filter((k) => k.keyword);
+  }
+  async getPageIssues(auditId: number, urlId: number): Promise<SerankingAuditIssue[]> {
+    const raw = await this.call<Record<string, unknown>>("GET", "/site-audit/audits/issues", { query: { audit_id: auditId, url_id: urlId } });
+    return asArray(raw["issues"]).map(normaliseIssue);
+  }
+  private async call<T>(method: "GET" | "POST" | "PUT" | "DELETE", path: string, opts?: { query?: Record<string, string | number | boolean | undefined>; body?: unknown }): Promise<T> {
+    try { return await this.http.request<T>(method, path, opts); }
+    catch (err) { const wrapped = parseErrorEnvelope(err); if (wrapped) throw wrapped; throw err; }
+  }
 }
 
-function normalizePositions(raw: unknown): SerankingPosition[] {
-  const list = Array.isArray(raw) ? raw : asArray((raw as { positions?: unknown[]; data?: unknown[] })?.positions ?? (raw as { data?: unknown[] })?.data);
-  return list.map((it) => {
-    const o = (it as Record<string, unknown>) ?? {};
-    const position = getInt(o, "position", "pos", "rank");
-    const prev = getInt(o, "previous_position", "previousPosition", "prev_pos");
-    return {
-      keywordId: String(getStr(o, "keyword_id", "keywordId", "id") ?? ""),
-      keyword: String(getStr(o, "keyword", "name") ?? ""),
-      position: position ?? null,
-      previousPosition: prev ?? null,
-      url: getStr(o, "url", "landing_url"),
-      date: String(getStr(o, "date", "check_date") ?? new Date().toISOString().slice(0, 10)),
-      device: getStr(o, "device"),
-      searchEngine: getStr(o, "search_engine", "engine")
-    };
-  });
-}
-
-function normalizeAuditIssues(raw: unknown): SerankingAuditIssue[] {
-  const list = Array.isArray(raw) ? raw : asArray((raw as { issues?: unknown[]; data?: unknown[] })?.issues ?? (raw as { data?: unknown[] })?.data);
-  const severityMap: Record<string, SerankingAuditIssue["severity"]> = {
-    info: "info", low: "notice", notice: "notice",
-    medium: "warning", warning: "warning", warn: "warning",
-    high: "error", error: "error",
-    critical: "critical", severe: "critical"
+function normaliseIssue(raw: unknown): SerankingAuditIssue {
+  const o = (raw as Record<string, unknown>) ?? {};
+  const sevRaw = String(o["severity"] ?? o["level"] ?? "warning").toLowerCase();
+  const sev: SerankingAuditIssue["severity"] =
+    sevRaw === "error" || sevRaw === "critical" ? "error"
+    : sevRaw === "warning" ? "warning"
+    : sevRaw === "notice" ? "notice"
+    : "info";
+  return {
+    code: String(o["code"] ?? o["rule_code"] ?? "unknown"),
+    severity: sev,
+    category: String(o["category"] ?? o["group"] ?? "general"),
+    message: String(o["message"] ?? o["title"] ?? o["name"] ?? "Untitled issue"),
+    affectedUrl: typeof o["url"] === "string" ? (o["url"] as string) : undefined,
+    snippet: o["snippet"],
+    metric: typeof o["metric"] === "object" ? (o["metric"] as Record<string, unknown>) : undefined
   };
-  return list.map((it) => {
-    const o = (it as Record<string, unknown>) ?? {};
-    const sevRaw = String(getStr(o, "severity", "level", "priority") ?? "warning").toLowerCase();
-    return {
-      ruleCode: String(getStr(o, "code", "rule", "rule_code", "issue_code") ?? "unknown"),
-      category: String(getStr(o, "category", "group") ?? "general"),
-      severity: severityMap[sevRaw] ?? "warning",
-      message: String(getStr(o, "message", "description", "title") ?? "Untitled issue"),
-      affectedUrl: getStr(o, "url", "affected_url", "page_url"),
-      details: typeof o["details"] === "object" ? (o["details"] as Record<string, unknown>) : undefined
-    };
-  });
 }
 
-function normalizeCompetitors(raw: unknown): SerankingCompetitor[] {
-  const list = Array.isArray(raw) ? raw : asArray((raw as { competitors?: unknown[]; data?: unknown[] })?.competitors ?? (raw as { data?: unknown[] })?.data);
-  return list.map((it) => {
-    const o = (it as Record<string, unknown>) ?? {};
-    return {
-      domain: String(getStr(o, "domain", "competitor", "url") ?? ""),
-      visibilityScore: getInt(o, "visibility", "visibility_score"),
-      sharedKeywords: getInt(o, "shared_keywords", "common_keywords"),
-      exclusiveKeywords: getInt(o, "exclusive_keywords", "unique_keywords")
-    };
-  }).filter((c) => c.domain);
-}
+export class SerankingClient extends SerankingProjectClient {}

@@ -32,7 +32,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().optional().default(""),
   DIRECT_URL: z.string().optional().default(""),
   DIRECT_DATABASE_URL: z.string().optional().default(""),
-  SECRETS_MASTER_KEY: z.string().optional().default("")
+  SECRETS_MASTER_KEY: z.string().optional().default(""),
+  ANTHROPIC_API_KEY: z.string().optional().default(""),
+  ANTHROPIC_MODEL: z.string().optional().default("claude-sonnet-4-6")
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
