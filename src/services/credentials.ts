@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { Logger } from "pino";
 import { decryptJSON, encryptJSON } from "../utils/crypto.js";
+import { SerankingClient, type SerankingKeyClassification } from "../clients/seranking.js";
 
 export type WordPressCredentialPayload = { username: string; applicationPassword: string };
 export type SerankingCredentialPayload = { apiKey: string };
@@ -45,6 +46,51 @@ export class CredentialsService {
     const project = await this.prisma.project.findFirst({ where: { domain: "__global__" } });
     if (!project) throw new Error("Run the seed script first to create the __global__ project.");
     await this.persist(project.id, "seranking_token", "data_api", payload);
+  }
+
+  /**
+   * Auto-detect SE Ranking key type (Project vs Data) by probing both APIs,
+   * then persist it under the correct label.
+   *
+   * - "project"  -> stored with label "default"   (account-wide credential)
+   * - "data"     -> stored with label "data_api"  (account-wide credential)
+   *
+   * If projectId is omitted, the key is stored on the __global__ project.
+   * Returns the classification so the caller can surface diagnostics.
+   */
+  async setSerankingAutodetect(
+    payload: SerankingCredentialPayload,
+    opts?: { projectId?: string }
+  ): Promise<SerankingKeyClassification> {
+    const classification = await SerankingClient.detectKey(payload.apiKey, this.logger);
+    if (classification.keyType === "unknown") {
+      throw new Error(
+        `SE Ranking key not accepted by either API. ` +
+        `Project probe: HTTP ${classification.probe.project.status ?? "n/a"} (${classification.probe.project.error ?? "ok"}). ` +
+        `Data probe: HTTP ${classification.probe.data.status ?? "n/a"} (${classification.probe.data.error ?? "ok"}).`
+      );
+    }
+    const label = classification.keyType === "data" ? "data_api" : "default";
+    const projectId = opts?.projectId ?? await this.requireGlobalProjectId();
+    await this.persist(projectId, "seranking_token", label, payload);
+    this.logger?.info({ projectId, label, keyType: classification.keyType }, "SE Ranking key stored after autodetect");
+    return classification;
+  }
+
+  /**
+   * Build a unified SerankingClient by loading whichever keys are configured
+   * for the project (project-scoped first, then global fallback).
+   */
+  async buildSerankingClient(projectId?: string): Promise<SerankingClient> {
+    const projectKey = (await this.getSeranking(projectId))?.apiKey;
+    const dataKey = (await this.getSerankingDataApi(projectId))?.apiKey;
+    return new SerankingClient({ projectKey, dataKey, logger: this.logger });
+  }
+
+  private async requireGlobalProjectId(): Promise<string> {
+    const project = await this.prisma.project.findFirst({ where: { domain: "__global__" } });
+    if (!project) throw new Error("Run the seed script first to create the __global__ project.");
+    return project.id;
   }
 
   private async persist(projectId: string, type: string, label: string, value: unknown): Promise<void> {

@@ -4,14 +4,14 @@ import type { AppContext } from "../app/appContext.js";
 import { jsonToolResponse } from "./response.js";
 
 /**
- * Orchestration tools: high-level pipelines that chain extract → strategy → execute.
+ * Orchestration tools: high-level pipelines that chain extract -> strategy -> execute.
  * These are the entry points Claude (or any MCP client) will call.
  */
 
 export function registerOrchestrationTools(server: McpServer, context: AppContext) {
   server.tool(
     "ingest_project",
-    "Extrae datos SEO de SE Ranking para un proyecto (keywords, posiciones, audit, competitors) y los persiste en la base de datos. Devuelve estadísticas del run.",
+    "Extrae datos SEO de SE Ranking para un proyecto (keywords, posiciones, audit, competitors) y los persiste en la base de datos. Devuelve estadisticas del run.",
     { project_id: z.string().uuid() },
     async ({ project_id }) => {
       if (!context.services?.extract) {
@@ -28,7 +28,7 @@ export function registerOrchestrationTools(server: McpServer, context: AppContex
 
   server.tool(
     "ingest_all_projects",
-    "Ejecuta ingest_project en todos los proyectos activos en serie. Devuelve un array con un resultado por proyecto. Útil como cron diario/semanal.",
+    "Ejecuta ingest_project en todos los proyectos activos en serie. Devuelve un array con un resultado por proyecto. Util como cron diario/semanal.",
     {},
     async () => {
       if (!context.services?.extract) {
@@ -71,7 +71,7 @@ export function registerOrchestrationTools(server: McpServer, context: AppContex
 
   server.tool(
     "run_pipeline_for_project",
-    "Pipeline completo (extract + strategy) para un solo proyecto. No ejecuta cambios automáticamente; solo genera propuestas que requieren aprobación.",
+    "Pipeline completo (extract + strategy) para un solo proyecto. No ejecuta cambios automaticamente; solo genera propuestas que requieren aprobacion.",
     { project_id: z.string().uuid() },
     async ({ project_id }) => {
       if (!context.services?.extract || !context.services?.strategy) {
@@ -89,8 +89,40 @@ export function registerOrchestrationTools(server: McpServer, context: AppContex
   );
 
   server.tool(
+    "register_seranking_key",
+    "Registra una API key de SE Ranking. Autodetecta si es Project API (account-wide, 40-char hex) o Data API (UUID), prueba contra ambos endpoints, cifra con AES-256-GCM y la guarda como credencial global. Devuelve { keyType, format, capabilities, probe }.",
+    {
+      api_key: z.string().min(20).describe("Cadena de la API key tal cual la copies del panel de SE Ranking."),
+      project_id: z.string().uuid().optional().describe("Opcional: guardar como credencial por-proyecto en lugar de global.")
+    },
+    async ({ api_key, project_id }) => {
+      if (!context.services?.credentials) {
+        return jsonToolResponse({ ok: false, error: "credentials_service_not_available", hint: "DATABASE_URL must be configured." });
+      }
+      try {
+        const classification = await context.services.credentials.setSerankingAutodetect(
+          { apiKey: api_key },
+          project_id ? { projectId: project_id } : undefined
+        );
+        return jsonToolResponse({
+          ok: true,
+          stored_as: classification.keyType === "data" ? "data_api" : "default",
+          scope: project_id ? "project" : "global",
+          project_id: project_id ?? null,
+          keyType: classification.keyType,
+          format: classification.format,
+          capabilities: classification.capabilities,
+          probe: classification.probe
+        });
+      } catch (err) {
+        return jsonToolResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  );
+
+  server.tool(
     "run_pipeline_all_projects",
-    "Pipeline completo extract + strategy para TODOS los proyectos activos. Pensado para ejecutarse vía cron/scheduled-task semanal.",
+    "Pipeline completo extract + strategy para TODOS los proyectos activos. Pensado para ejecutarse via cron/scheduled-task semanal.",
     {},
     async () => {
       if (!context.services?.extract || !context.services?.strategy) {

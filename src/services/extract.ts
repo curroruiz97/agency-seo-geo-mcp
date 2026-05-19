@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { Logger } from "pino";
-import { SerankingProjectClient, SerankingDataClient, type SerankingPositionEntry } from "../clients/seranking.js";
+import { type SerankingPositionEntry } from "../clients/seranking.js";
 import { CredentialsService } from "./credentials.js";
 
 type ExtractionRun = {
@@ -27,25 +27,25 @@ export class ExtractService {
     const project = await p.project.findUniqueOrThrow({ where: { id: projectId } });
     if (!project.serankingProjectId) throw new Error(`Project ${projectId} has no serankingProjectId.`);
 
-    const projectApiKey = await this.credentials.getSeranking(projectId);
-    if (!projectApiKey?.apiKey) throw new Error("SE Ranking Project API key is not configured.");
-    const dataApiKey = await this.credentials.getSerankingDataApi(projectId);
+    const seranking = await this.credentials.buildSerankingClient(projectId);
+    if (!seranking.hasProject()) {
+      throw new Error("SE Ranking Project API key is not configured (global or per-project). Register one with register_seranking_key.");
+    }
 
     const run = await p.extractionRun.create({ data: { projectId, source: "seranking", status: "running" } });
     const startTime = Date.now();
-    const projectClient = new SerankingProjectClient({ apiKey: projectApiKey.apiKey, logger: this.logger });
     const stats: ExtractStats = { searchEngines: 0, keywords: 0, positions: 0, auditFindings: 0, competitors: 0, notes: [] };
 
     try {
       const remoteSiteId = Number(project.serankingProjectId);
       if (!Number.isFinite(remoteSiteId)) throw new Error(`serankingProjectId must be numeric, got "${project.serankingProjectId}"`);
 
-      const engines = await projectClient.listSearchEngines(remoteSiteId);
+      const engines = await seranking.listSearchEngines(remoteSiteId);
       stats.searchEngines = engines.length;
       if (engines.length === 0) stats.notes!.push("No search engines configured on SE Ranking project.");
 
       for (const engine of engines) {
-        const remoteKeywords = await projectClient.listKeywords(remoteSiteId, engine.id);
+        const remoteKeywords = await seranking.listKeywords(remoteSiteId, engine.id);
         for (const kw of remoteKeywords) {
           await p.keyword.upsert({
             where: { projectId_keyword: { projectId, keyword: kw.name } },
@@ -64,7 +64,7 @@ export class ExtractService {
 
       const today = new Date().toISOString().slice(0, 10);
       for (const engine of engines) {
-        const groups = await projectClient.getPositions(remoteSiteId, {
+        const groups = await seranking.getPositions(remoteSiteId, {
           siteEngineId: engine.id, dateFrom: today, dateTo: today,
           withLandingPages: true, withSerpFeatures: true
         });
@@ -95,7 +95,7 @@ export class ExtractService {
         }
       }
 
-      const competitors = await projectClient.listCompetitors(remoteSiteId);
+      const competitors = await seranking.listCompetitors(remoteSiteId);
       for (const c of competitors) {
         const domain = normaliseDomain(c.url);
         await p.competitor.upsert({
@@ -112,13 +112,12 @@ export class ExtractService {
         stats.competitors += 1;
       }
 
-      if (dataApiKey?.apiKey) {
+      if (seranking.hasData()) {
         try {
-          const dataClient = new SerankingDataClient({ apiKey: dataApiKey.apiKey, logger: this.logger });
-          const audits = await dataClient.listAudits();
+          const audits = await seranking.listAudits();
           const audit = audits.find((a) => a.url.includes(project.domain)) ?? audits[0];
           if (audit) {
-            const report = await dataClient.getAuditReport(audit.id);
+            const report = await seranking.getAuditReport(audit.id);
             for (const section of report.sections) {
               for (const issue of section.issues) {
                 await p.auditFinding.upsert({

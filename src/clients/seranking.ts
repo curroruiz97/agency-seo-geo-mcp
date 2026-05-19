@@ -252,4 +252,197 @@ function normaliseIssue(raw: unknown): SerankingAuditIssue {
   };
 }
 
-export class SerankingClient extends SerankingProjectClient {}
+// -----------------------------------------------------------------------------
+// Unified SerankingClient — single facade that auto-detects key type, instantiates
+// the right sub-client(s), and routes calls. Keep SerankingProjectClient and
+// SerankingDataClient exported for backwards compat.
+// -----------------------------------------------------------------------------
+
+export type SerankingKeyType = "project" | "data" | "unknown";
+
+export interface SerankingKeyClassification {
+  apiKey: string;
+  keyType: SerankingKeyType;
+  format: "uuid" | "hex40" | "other";
+  capabilities: string[];
+  probe: { project: { ok: boolean; status?: number; error?: string }; data: { ok: boolean; status?: number; error?: string } };
+}
+
+export interface SerankingClientOptions {
+  projectKey?: string;
+  dataKey?: string;
+  logger?: Logger;
+}
+
+export class SerankingClient {
+  private project?: SerankingProjectClient;
+  private data?: SerankingDataClient;
+  private logger?: Logger;
+
+  constructor(opts: SerankingClientOptions) {
+    this.logger = opts.logger;
+    if (opts.projectKey) this.project = new SerankingProjectClient({ apiKey: opts.projectKey, logger: opts.logger });
+    if (opts.dataKey) this.data = new SerankingDataClient({ apiKey: opts.dataKey, logger: opts.logger });
+  }
+
+  hasProject(): boolean { return !!this.project; }
+  hasData(): boolean { return !!this.data; }
+
+  private requireProject(): SerankingProjectClient {
+    if (!this.project) throw new SerankingClientError(401, "Project API key is not configured for this operation.");
+    return this.project;
+  }
+  private requireData(): SerankingDataClient {
+    if (!this.data) throw new SerankingClientError(401, "Data API key is not configured for this operation.");
+    return this.data;
+  }
+
+  // ---- Project API surface ----
+  listSites() { return this.requireProject().listSites(); }
+  listSearchEngines(siteId: number) { return this.requireProject().listSearchEngines(siteId); }
+  listKeywords(siteId: number, siteEngineId: number) { return this.requireProject().listKeywords(siteId, siteEngineId); }
+  getPositions(siteId: number, opts?: Parameters<SerankingProjectClient["getPositions"]>[1]) { return this.requireProject().getPositions(siteId, opts); }
+  listCompetitors(siteId: number) { return this.requireProject().listCompetitors(siteId); }
+  listBacklinks(siteId: number) { return this.requireProject().listBacklinks(siteId); }
+
+  // ---- Data API surface ----
+  listAudits() { return this.requireData().listAudits(); }
+  getAuditStatus(auditId: number) { return this.requireData().getAuditStatus(auditId); }
+  getAuditReport(auditId: number) { return this.requireData().getAuditReport(auditId); }
+  getPageIssues(auditId: number, urlId: number) { return this.requireData().getPageIssues(auditId, urlId); }
+
+  /**
+   * Probe a raw API key against both SE Ranking APIs and classify it.
+   *
+   * Project API:  GET https://api4.seranking.com/sites
+   * Data API:     GET https://api.seranking.com/v1/site-audit/audits
+   *
+   * Returns the format (uuid / 40-char hex), which API accepted the key,
+   * and a flat list of high-level capabilities the caller can rely on.
+   */
+  static async detectKey(apiKey: string, logger?: Logger): Promise<SerankingKeyClassification> {
+    const trimmed = apiKey.trim();
+    const format: SerankingKeyClassification["format"] =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed) ? "uuid"
+      : /^[0-9a-f]{40}$/i.test(trimmed) ? "hex40"
+      : "other";
+
+    const probeProject = await probeEndpoint("https://api4.seranking.com/sites", trimmed);
+    const probeData = await probeEndpoint("https://api.seranking.com/v1/site-audit/audits", trimmed);
+
+    let keyType: SerankingKeyType = "unknown";
+    const caps: string[] = [];
+    if (probeProject.ok) { keyType = "project"; caps.push("sites", "keywords", "positions", "competitors", "backlinks"); }
+    if (probeData.ok)    { keyType = probeProject.ok ? keyType : "data"; caps.push("audits", "site_audit_report", "page_issues"); }
+
+    logger?.info({ format, keyType, probeProject, probeData }, "SE Ranking key detection");
+    return { apiKey: trimmed, keyType, format, capabilities: caps, probe: { project: probeProject, data: probeData } };
+  }
+}
+
+async function probeEndpoint(url: string, apiKey: string): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try {
+    const res = await fetch(url, { method: "GET", headers: { Authorization: `Token ${apiKey}` } });
+    if (res.ok) return { ok: true, status: res.status };
+    return { ok: false, status: res.status, error: `HTTP ${res.status}` };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+// -----------------------------------------------------------------------------
+// Unified SerankingClient - single facade that auto-detects key type, instantiates
+// the right sub-client(s), and routes calls. Keep SerankingProjectClient and
+// SerankingDataClient exported for backwards compat.
+// -----------------------------------------------------------------------------
+
+export type SerankingKeyType = "project" | "data" | "unknown";
+
+export interface SerankingKeyClassification {
+  apiKey: string;
+  keyType: SerankingKeyType;
+  format: "uuid" | "hex40" | "other";
+  capabilities: string[];
+  probe: { project: { ok: boolean; status?: number; error?: string }; data: { ok: boolean; status?: number; error?: string } };
+}
+
+export interface SerankingClientOptions {
+  projectKey?: string;
+  dataKey?: string;
+  logger?: Logger;
+}
+
+export class SerankingClient {
+  private project?: SerankingProjectClient;
+  private data?: SerankingDataClient;
+  private logger?: Logger;
+
+  constructor(opts: SerankingClientOptions) {
+    this.logger = opts.logger;
+    if (opts.projectKey) this.project = new SerankingProjectClient({ apiKey: opts.projectKey, logger: opts.logger });
+    if (opts.dataKey) this.data = new SerankingDataClient({ apiKey: opts.dataKey, logger: opts.logger });
+  }
+
+  hasProject(): boolean { return !!this.project; }
+  hasData(): boolean { return !!this.data; }
+
+  private requireProject(): SerankingProjectClient {
+    if (!this.project) throw new SerankingClientError(401, "Project API key is not configured for this operation.");
+    return this.project;
+  }
+  private requireData(): SerankingDataClient {
+    if (!this.data) throw new SerankingClientError(401, "Data API key is not configured for this operation.");
+    return this.data;
+  }
+
+  // ---- Project API surface ----
+  listSites() { return this.requireProject().listSites(); }
+  listSearchEngines(siteId: number) { return this.requireProject().listSearchEngines(siteId); }
+  listKeywords(siteId: number, siteEngineId: number) { return this.requireProject().listKeywords(siteId, siteEngineId); }
+  getPositions(siteId: number, opts?: Parameters<SerankingProjectClient["getPositions"]>[1]) { return this.requireProject().getPositions(siteId, opts); }
+  listCompetitors(siteId: number) { return this.requireProject().listCompetitors(siteId); }
+  listBacklinks(siteId: number) { return this.requireProject().listBacklinks(siteId); }
+
+  // ---- Data API surface ----
+  listAudits() { return this.requireData().listAudits(); }
+  getAuditStatus(auditId: number) { return this.requireData().getAuditStatus(auditId); }
+  getAuditReport(auditId: number) { return this.requireData().getAuditReport(auditId); }
+  getPageIssues(auditId: number, urlId: number) { return this.requireData().getPageIssues(auditId, urlId); }
+
+  /**
+   * Probe a raw API key against both SE Ranking APIs and classify it.
+   *
+   * Project API:  GET https://api4.seranking.com/sites
+   * Data API:     GET https://api.seranking.com/v1/site-audit/audits
+   *
+   * Returns the format (uuid / 40-char hex), which API accepted the key,
+   * and a flat list of high-level capabilities the caller can rely on.
+   */
+  static async detectKey(apiKey: string, logger?: Logger): Promise<SerankingKeyClassification> {
+    const trimmed = apiKey.trim();
+    const format: SerankingKeyClassification["format"] =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed) ? "uuid"
+      : /^[0-9a-f]{40}$/i.test(trimmed) ? "hex40"
+      : "other";
+
+    const probeProject = await probeEndpoint("https://api4.seranking.com/sites", trimmed);
+    const probeData = await probeEndpoint("https://api.seranking.com/v1/site-audit/audits", trimmed);
+
+    let keyType: SerankingKeyType = "unknown";
+    const caps: string[] = [];
+    if (probeProject.ok) { keyType = "project"; caps.push("sites", "keywords", "positions", "competitors", "backlinks"); }
+    if (probeData.ok)    { keyType = probeProject.ok ? keyType : "data"; caps.push("audits", "site_audit_report", "page_issues"); }
+
+    logger?.info({ format, keyType, probeProject, probeData }, "SE Ranking key detection");
+    return { apiKey: trimmed, keyType, format, capabilities: caps, probe: { project: probeProject, data: probeData } };
+  }
+}
+
+async function probeEndpoint(url: string, apiKey: string): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try {
+    const res = await fetch(url, { method: "GET", headers: { Authorization: `Token ${apiKey}` } });
+    if (res.ok) return { ok: true, status: res.status };
+    return { ok: false, status: res.status, error: `HTTP ${res.status}` };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
