@@ -30,11 +30,12 @@ export function createHttpServer(context: AppContext) {
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || config.ALLOWED_ORIGINS.length === 0 || config.ALLOWED_ORIGINS.includes(origin)) {
-          callback(null, true);
-          return;
-        }
-        callback(new Error("Origin not allowed"));
+        // Never throw on a disallowed origin: that surfaces as a 500 and breaks
+        // browser navigations (e.g. the OAuth login form, which sends
+        // `Origin: null`). Simply don't reflect the origin. The /mcp endpoint is
+        // additionally guarded by validateOrigin + the bearer/OAuth token.
+        const allowed = !origin || config.ALLOWED_ORIGINS.length === 0 || config.ALLOWED_ORIGINS.includes(origin);
+        callback(null, allowed);
       }
     })
   );
@@ -112,6 +113,10 @@ export function createHttpServer(context: AppContext) {
   });
 
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    context.logger.error(
+      { err: error instanceof Error ? { message: error.message, stack: error.stack } : error },
+      "unhandled request error"
+    );
     const message =
       config.NODE_ENV === "production"
         ? "Unexpected server error"
