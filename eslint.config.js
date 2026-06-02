@@ -28,6 +28,22 @@ export default [
     }
   },
   {
+    // Node utility scripts (ESM). typescript-eslint disables no-undef for .ts
+    // files, but plain .mjs scripts need the Node globals declared explicitly.
+    files: ["scripts/**/*.mjs", "scripts/**/*.js", "**/*.mjs"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        console: "readonly",
+        Buffer: "readonly",
+        URL: "readonly",
+        fetch: "readonly",
+        setTimeout: "readonly",
+        __dirname: "readonly"
+      }
+    }
+  },
+  {
     ignores: ["dist/**", "**/dist/**", "node_modules/**"]
   }
 ];

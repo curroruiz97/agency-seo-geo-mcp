@@ -47,7 +47,7 @@ export function createAppContext(config: AppConfig): AppContext {
     const credentials = new CredentialsService(prisma, logger);
     const extract = new ExtractService(prisma, credentials, logger);
     const strategy = new StrategyService(prisma, logger);
-    const execute = new ExecuteService(prisma, credentials, logger);
+    const execute = new ExecuteService(prisma, credentials, config, logger);
     const contentGenerator = new ContentGeneratorService(
       config.ANTHROPIC_API_KEY || null,
       config.ANTHROPIC_MODEL || "claude-sonnet-4-6",

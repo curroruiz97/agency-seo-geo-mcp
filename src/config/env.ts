@@ -21,7 +21,7 @@ const envSchema = z.object({
     ),
   REQUIRE_MCP_AUTH: z
     .string()
-    .default("false")
+    .default("true")
     .transform((value) => value.toLowerCase() === "true"),
   ALLOW_PUBLIC_MCP_DISCOVERY: z
     .string()
@@ -44,6 +44,14 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
 
   if (config.REQUIRE_MCP_AUTH && !config.MCP_BEARER_TOKEN) {
     throw new Error("MCP_BEARER_TOKEN is required when REQUIRE_MCP_AUTH=true.");
+  }
+
+  // Defence in depth: never allow an unauthenticated /mcp endpoint in production,
+  // even if REQUIRE_MCP_AUTH was explicitly turned off.
+  if (config.NODE_ENV === "production" && !config.MCP_BEARER_TOKEN) {
+    throw new Error(
+      "MCP_BEARER_TOKEN must be set in production. Refusing to start an unauthenticated /mcp endpoint."
+    );
   }
 
   return config;

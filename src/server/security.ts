@@ -29,9 +29,21 @@ const publicDiscoveryMethods = new Set([
   "prompts/list"
 ]);
 
-export function requireMcpBearerToken(config: Pick<AppConfig, "MCP_BEARER_TOKEN" | "ALLOW_PUBLIC_MCP_DISCOVERY">) {
+export function requireMcpBearerToken(
+  config: Pick<AppConfig, "MCP_BEARER_TOKEN" | "ALLOW_PUBLIC_MCP_DISCOVERY" | "REQUIRE_MCP_AUTH">
+) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!config.MCP_BEARER_TOKEN) {
+      // No token configured. If auth is required (the default), fail closed
+      // instead of silently exposing every tool. Only an explicit
+      // REQUIRE_MCP_AUTH=false (dev/local) leaves the endpoint open.
+      if (config.REQUIRE_MCP_AUTH) {
+        res.status(503).json({
+          error: "auth_misconfigured",
+          message: "MCP authentication is required but no MCP_BEARER_TOKEN is configured."
+        });
+        return;
+      }
       next();
       return;
     }

@@ -49,6 +49,24 @@ const readOnlyNames = new Set([
   "check_site_health", "check_all_sites_health"
 ]);
 
+// Tools that perform real, hard-to-reverse writes on external systems.
+const destructiveNames = new Set(["execute_change_request"]);
+
+// Tools that reach external systems (WordPress, RankMath, SE Ranking, Google,
+// Anthropic) — directly or by applying an approved change. Registry/discovery
+// reads that only touch our own database are NOT open-world.
+const openWorldPrefixes = ["gsc_", "ga_", "seranking_"];
+const openWorldNames = new Set([
+  "get_post", "list_posts", "list_pages", "get_categories", "get_tags",
+  "get_rankmath_metadata", "get_focus_keywords", "get_schema_config", "get_redirections",
+  "create_post", "update_post", "update_page", "upload_media", "create_redirection",
+  "update_rankmath_metadata", "update_focus_keywords", "update_schema_config",
+  "check_site_health", "check_all_sites_health",
+  "ingest_project", "ingest_all_projects",
+  "run_pipeline_for_project", "run_pipeline_all_projects",
+  "register_seranking_key", "fill_content_draft", "execute_change_request"
+]);
+
 export function registerTools(server: McpServer, context: AppContext) {
   registerSystemTools(server, context);
   registerKnowledgeTools(server, context);
@@ -66,6 +84,14 @@ export function registerTools(server: McpServer, context: AppContext) {
 
 function isReadOnlyTool(name: string) {
   return readOnlyNames.has(name) || readOnlyPrefixes.some((prefix) => name.startsWith(prefix));
+}
+
+function isDestructiveTool(name: string) {
+  return destructiveNames.has(name);
+}
+
+function isOpenWorldTool(name: string) {
+  return openWorldNames.has(name) || openWorldPrefixes.some((prefix) => name.startsWith(prefix));
 }
 
 function titleFromName(name: string) {
@@ -88,8 +114,8 @@ function normalizeToolDescriptors(server: McpServer) {
     tool.outputSchema ??= genericOutputSchema;
     tool.annotations = {
       readOnlyHint: readOnly,
-      destructiveHint: false,
-      openWorldHint: false,
+      destructiveHint: isDestructiveTool(name),
+      openWorldHint: isOpenWorldTool(name),
       idempotentHint: readOnly,
       ...tool.annotations
     };

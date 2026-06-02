@@ -49,11 +49,9 @@ const META_KEYS = {
   title: "rank_math_title",
   description: "rank_math_description",
   focus: "rank_math_focus_keyword",
-  secondaryFocus: "rank_math_secondary_focus_keyword",
   canonical: "rank_math_canonical_url",
   robots: "rank_math_robots",
-  schemaType: "rank_math_rich_snippet",
-  schemaPayload: "rank_math_schema"
+  schemaType: "rank_math_rich_snippet"
 };
 
 export class RankMathClient {
@@ -77,17 +75,19 @@ export class RankMathClient {
       { query: { context: "edit" } }
     );
     const meta = (raw["meta"] as Record<string, unknown>) ?? {};
-    const secondary = meta[META_KEYS.secondaryFocus];
+    // RankMath stores every focus keyword (primary + secondary) as a single
+    // comma-separated string in rank_math_focus_keyword, primary first.
+    const focusRaw = meta[META_KEYS.focus];
+    const focusList = typeof focusRaw === "string" ? focusRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
     return {
       postId,
       metaTitle: meta[META_KEYS.title] as string | undefined,
       metaDescription: meta[META_KEYS.description] as string | undefined,
-      focusKeyword: meta[META_KEYS.focus] as string | undefined,
-      secondaryKeywords: typeof secondary === "string" ? secondary.split(",").map((s) => s.trim()).filter(Boolean) : [],
+      focusKeyword: focusList[0],
+      secondaryKeywords: focusList.slice(1),
       canonicalUrl: meta[META_KEYS.canonical] as string | undefined,
       robots: Array.isArray(meta[META_KEYS.robots]) ? (meta[META_KEYS.robots] as string[]) : [],
-      schemaType: meta[META_KEYS.schemaType] as string | undefined,
-      schemaPayload: meta[META_KEYS.schemaPayload] as Record<string, unknown> | undefined
+      schemaType: meta[META_KEYS.schemaType] as string | undefined
     };
   }
 
@@ -95,17 +95,39 @@ export class RankMathClient {
     const meta: Record<string, unknown> = {};
     if (input.metaTitle !== undefined) meta[META_KEYS.title] = input.metaTitle;
     if (input.metaDescription !== undefined) meta[META_KEYS.description] = input.metaDescription;
-    if (input.focusKeyword !== undefined) meta[META_KEYS.focus] = input.focusKeyword;
-    if (input.secondaryKeywords !== undefined) meta[META_KEYS.secondaryFocus] = input.secondaryKeywords.join(",");
+    // RankMath keeps primary + secondary keywords together in a single
+    // comma-separated rank_math_focus_keyword value (primary first).
+    if (input.focusKeyword !== undefined || input.secondaryKeywords !== undefined) {
+      const all = [input.focusKeyword, ...(input.secondaryKeywords ?? [])]
+        .map((s) => (s ?? "").trim())
+        .filter(Boolean);
+      meta[META_KEYS.focus] = all.join(", ");
+    }
     if (input.canonicalUrl !== undefined) meta[META_KEYS.canonical] = input.canonicalUrl;
     if (input.robots !== undefined) meta[META_KEYS.robots] = input.robots;
     if (input.schemaType !== undefined) meta[META_KEYS.schemaType] = input.schemaType;
-    if (input.schemaPayload !== undefined) meta[META_KEYS.schemaPayload] = input.schemaPayload;
 
     await this.http.request("POST", `/wp/v2/${type}s/${input.postId}`, {
       body: { meta }
     });
+    // Schema objects are NOT part of the standard meta surface in RankMath;
+    // they are written through setSchema() (the mu-plugin bridge) instead.
     return this.getPostMeta(input.postId, type);
+  }
+
+  /**
+   * Write a RankMath schema object via the Avenue MCP Bridge mu-plugin
+   * (POST /wp-json/avenue-mcp/v1/posts/{id}/schema), which serialises it into
+   * the rank_math_schema_<Type> post meta the way RankMath expects.
+   */
+  async setSchema(
+    postId: number,
+    type: string,
+    payload: Record<string, unknown>
+  ): Promise<{ ok: boolean; post_id?: number; meta_key?: string }> {
+    return this.http.request("POST", `/avenue-mcp/v1/posts/${postId}/schema`, {
+      body: { type, payload }
+    });
   }
 
   // --- Redirections (RankMath Pro: rank-math/v1/redirections) ---

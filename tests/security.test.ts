@@ -40,7 +40,8 @@ function createResponse() {
 describe("MCP bearer auth", () => {
   const config = {
     MCP_BEARER_TOKEN: "secret-token",
-    ALLOW_PUBLIC_MCP_DISCOVERY: true
+    ALLOW_PUBLIC_MCP_DISCOVERY: true,
+    REQUIRE_MCP_AUTH: true
   };
 
   it("allows unauthenticated tools/list discovery when enabled", () => {
@@ -97,6 +98,30 @@ describe("MCP bearer auth", () => {
     const next = vi.fn() as NextFunction;
 
     requireMcpBearerToken(config)(req, res, next);
+
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("fails closed when no token is configured but auth is required", () => {
+    const noTokenConfig = { MCP_BEARER_TOKEN: "", ALLOW_PUBLIC_MCP_DISCOVERY: true, REQUIRE_MCP_AUTH: true };
+    const req = createRequest("POST", { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "ping" } });
+    const res = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    requireMcpBearerToken(noTokenConfig)(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toMatchObject({ error: "auth_misconfigured" });
+  });
+
+  it("stays open only when auth is explicitly disabled (dev/local)", () => {
+    const openConfig = { MCP_BEARER_TOKEN: "", ALLOW_PUBLIC_MCP_DISCOVERY: true, REQUIRE_MCP_AUTH: false };
+    const req = createRequest("POST", { jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "ping" } });
+    const res = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    requireMcpBearerToken(openConfig)(req, res, next);
 
     expect(next).toHaveBeenCalledOnce();
   });

@@ -59,8 +59,8 @@ describe("MCP tool descriptors", () => {
       expect(tool.inputSchema, `${name} input schema`).toBeDefined();
       expect(tool.outputSchema, `${name} output schema`).toBeDefined();
       expect(tool.annotations?.readOnlyHint, `${name} readOnlyHint`).toEqual(expect.any(Boolean));
-      expect(tool.annotations?.destructiveHint, `${name} destructiveHint`).toBe(false);
-      expect(tool.annotations?.openWorldHint, `${name} openWorldHint`).toBe(false);
+      expect(tool.annotations?.destructiveHint, `${name} destructiveHint`).toEqual(expect.any(Boolean));
+      expect(tool.annotations?.openWorldHint, `${name} openWorldHint`).toEqual(expect.any(Boolean));
       expect(tool._meta?.["openai/toolInvocation/invoking"], `${name} invoking meta`).toEqual(expect.any(String));
       expect(tool._meta?.["openai/toolInvocation/invoked"], `${name} invoked meta`).toEqual(expect.any(String));
       expect(tool._meta?.["openai/outputTemplate"], `${name} output template`).toBe(AVENUE_AI_WIDGET_URI);
@@ -76,6 +76,14 @@ describe("MCP tool descriptors", () => {
     expect(registeredTools.gsc_get_search_performance?.annotations?.readOnlyHint).toBe(true);
     expect(registeredTools.update_post?.annotations?.readOnlyHint).toBe(false);
     expect(registeredTools.create_redirection?.annotations?.readOnlyHint).toBe(false);
+  });
+
+  it("flags the executor as destructive and external-facing tools as open-world", () => {
+    expect(registeredTools.execute_change_request?.annotations?.destructiveHint).toBe(true);
+    expect(registeredTools.ping?.annotations?.destructiveHint).toBe(false);
+    expect(registeredTools.gsc_get_search_performance?.annotations?.openWorldHint).toBe(true);
+    expect(registeredTools.execute_change_request?.annotations?.openWorldHint).toBe(true);
+    expect(registeredTools.list_projects?.annotations?.openWorldHint).toBe(false);
   });
 
   it("registers the Avenue AI app resource used by tool descriptors", () => {

@@ -63,6 +63,17 @@ export class StrategyService {
       const pos = latest.position;
       if (pos < 5 || pos > 20) continue;
 
+      // Idempotency: skip keywords that already have an active opportunity.
+      const existingKeywordOpp = await this.prisma.opportunity.findFirst({
+        where: {
+          projectId,
+          opportunityType: "keyword_optimization",
+          keyword: kw.keyword,
+          status: { in: ["open", "proposed", "in_progress"] }
+        }
+      });
+      if (existingKeywordOpp) continue;
+
       const volume = kw.searchVolume ?? 0;
       const volumeWeight = Math.log10(1 + volume);
       const intentMult = kw.intent ? INTENT_MULTIPLIER[kw.intent.toLowerCase()] ?? 1.0 : 1.0;
@@ -118,6 +129,19 @@ export class StrategyService {
       const severityScore: Record<string, number> = {
         critical: 10, error: 7, warning: 4, notice: 2, info: 1
       };
+      const auditSummary = `[${audit.severity.toUpperCase()}] ${audit.message}`;
+
+      // Idempotency: skip audit findings that already produced an active opportunity.
+      const existingAuditOpp = await this.prisma.opportunity.findFirst({
+        where: {
+          projectId,
+          opportunityType: "technical_seo_fix",
+          summary: auditSummary,
+          status: { in: ["open", "proposed", "in_progress"] }
+        }
+      });
+      if (existingAuditOpp) continue;
+
       const opp = await this.prisma.opportunity.create({
         data: {
           projectId,
@@ -125,7 +149,7 @@ export class StrategyService {
           opportunityType: "technical_seo_fix",
           url: audit.url ?? undefined,
           priorityScore: severityScore[audit.severity] ?? 1,
-          summary: `[${audit.severity.toUpperCase()}] ${audit.message}`,
+          summary: auditSummary,
           recommendedAction: mapAuditRuleToAction(audit.ruleCode)
         }
       });
@@ -157,6 +181,12 @@ export class StrategyService {
     });
 
     for (const gap of gaps) {
+      // Idempotency: skip gaps that already have a non-rejected draft.
+      const existingDraft = await this.prisma.contentDraft.findFirst({
+        where: { projectId, primaryKeyword: gap.keyword, status: { notIn: ["rejected"] } }
+      });
+      if (existingDraft) continue;
+
       const draft = await this.prisma.contentDraft.create({
         data: {
           projectId,

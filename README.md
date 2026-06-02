@@ -93,7 +93,7 @@ Google:
 - `gsc_*` para Search Console.
 - `ga_*` para Analytics.
 
-`list_projects`, `list_sites` y `seranking_get_projects` leen desde Supabase cuando `DATABASE_URL` esta configurada. Las acciones de escritura crean propuestas/change requests internos y no modifican WordPress, Rank Math ni otros sistemas externos mientras no se implementen los clientes seguros.
+`list_projects`, `list_sites` y `seranking_get_projects` leen desde Supabase cuando `DATABASE_URL` esta configurada. Las acciones de escritura (`create_post`, `update_*`, `create_redirection`, etc.) NO tocan WordPress directamente: crean un `ChangeRequest` interno para revision. La escritura real solo ocurre al llamar `execute_change_request` sobre un `ChangeRequest` aprobado, y ese paso esta **bloqueado mientras `READ_ONLY_MODE=true`** y ademas exige que el `ProjectCapability` del proyecto habilite la operacion concreta (`canPublish`, `canUpdateRankmath`, `canUpdateElementor`, `canChangeSlugs`, etc.).
 
 ## Desarrollo Local
 
@@ -122,9 +122,11 @@ PORT=3000
 PUBLIC_BASE_URL=https://lava.avenuemedia.io
 READ_ONLY_MODE=true
 ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com,https://claude.ai,https://claude.com
-REQUIRE_MCP_AUTH=false
+REQUIRE_MCP_AUTH=true
 ALLOW_PUBLIC_MCP_DISCOVERY=true
-MCP_BEARER_TOKEN=
+# Obligatorio: el server NO arranca en produccion sin token.
+# Generar con: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+MCP_BEARER_TOKEN=<TOKEN_ALEATORIO>
 LOG_LEVEL=info
 DATABASE_URL=postgresql://postgres.bfidzlbmkpegnndijosw:<PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true
 DIRECT_URL=postgresql://postgres.bfidzlbmkpegnndijosw:<PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { Logger } from "pino";
+import type { AppConfig } from "../config/env.js";
 import { WordPressClient } from "../clients/wordpress.js";
 import { RankMathClient } from "../clients/rankmath.js";
 import { ElementorAdapter, type ElementorBlock } from "../clients/elementor.js";
@@ -25,17 +26,29 @@ export interface ApplyResult {
   error?: string;
 }
 
+type ProjectCapabilityFlags = {
+  canCreateDrafts: boolean;
+  canUpdateRankmath: boolean;
+  canUpdateElementor: boolean;
+  canPublish: boolean;
+  canChangeSlugs: boolean;
+  canChangeCanonical: boolean;
+  canChangeRobots: boolean;
+  requiresHumanApproval: boolean;
+};
+
 export class ExecuteService {
   constructor(
     private prisma: PrismaClient,
     private credentials: CredentialsService,
+    private config: AppConfig,
     private logger?: Logger
   ) {}
 
   async applyApprovedRequest(changeRequestId: string): Promise<ApplyResult> {
     const cr = await this.prisma.changeRequest.findUniqueOrThrow({
       where: { id: changeRequestId },
-      include: { project: true }
+      include: { project: { include: { capabilities: true } } }
     });
     if (cr.status !== "approved") {
       throw new Error(`ChangeRequest ${changeRequestId} is not approved (status=${cr.status}).`);
@@ -56,6 +69,23 @@ export class ExecuteService {
         }
       });
 
+    // --- Safety gates -------------------------------------------------------
+    // These checks deliberately do NOT flip the ChangeRequest status, so the
+    // same request can be retried after READ_ONLY_MODE is lifted or the
+    // project's capabilities are granted.
+    if (this.config.READ_ONLY_MODE) {
+      const error =
+        "READ_ONLY_MODE is enabled; external writes are blocked. Set READ_ONLY_MODE=false to allow approved executions.";
+      await log({ ok: false, error });
+      return { ok: false, changeRequestId: cr.id, error };
+    }
+
+    const denial = this.checkCapabilities(cr);
+    if (denial) {
+      await log({ ok: false, error: denial });
+      return { ok: false, changeRequestId: cr.id, error: denial };
+    }
+
     try {
       let applied: Record<string, unknown>;
       switch (cr.changeType) {
@@ -73,9 +103,26 @@ export class ExecuteService {
         case "wordpress_update_page":
           applied = await this.applyUpdatePost(project, cr);
           break;
+        case "rankmath_update_focus_keywords":
+          applied = await this.applyUpdateFocusKeywords(project, cr);
+          break;
+        case "rankmath_update_schema_config":
+          applied = await this.applyUpdateSchema(project, cr);
+          break;
+        case "rankmath_update_canonical":
+          applied = await this.applyUpdateCanonical(project, cr);
+          break;
+        case "rankmath_update_robots":
+          applied = await this.applyUpdateRobots(project, cr);
+          break;
         case "rankmath_create_redirection":
           applied = await this.applyCreateRedirection(project, cr);
           break;
+        case "wordpress_upload_media":
+          throw new Error(
+            "wordpress_upload_media is not executable yet: media upload needs a validated source URL " +
+              "(SSRF protection pending). Upload media in WordPress directly for now."
+          );
         default:
           throw new Error(`Unsupported changeType: ${cr.changeType}`);
       }
@@ -95,6 +142,56 @@ export class ExecuteService {
       await log({ ok: false, error: errorMessage });
       return { ok: false, changeRequestId: cr.id, error: errorMessage };
     }
+  }
+
+  /**
+   * Enforce the per-project ProjectCapability flags. Returns a human-readable
+   * denial reason, or null when the change is allowed. A missing capability row
+   * falls back to the safe schema defaults (writes disabled, approval required).
+   *
+   * NOTE: with a single shared MCP_BEARER_TOKEN there is no per-user identity,
+   * so true separation-of-duties (proposer ≠ approver) cannot be enforced here.
+   * These flags + READ_ONLY_MODE + the approvedBy audit trail are the available
+   * mitigations until an authenticated user layer exists.
+   */
+  private checkCapabilities(cr: {
+    changeType: string;
+    approvedBy: string | null;
+    afterPayload: unknown;
+    project: { capabilities: ProjectCapabilityFlags | null };
+  }): string | null {
+    const c = cr.project.capabilities;
+    const cap = {
+      canCreateDrafts: c?.canCreateDrafts ?? false,
+      canUpdateRankmath: c?.canUpdateRankmath ?? false,
+      canUpdateElementor: c?.canUpdateElementor ?? false,
+      canPublish: c?.canPublish ?? false,
+      canChangeSlugs: c?.canChangeSlugs ?? false,
+      canChangeCanonical: c?.canChangeCanonical ?? false,
+      canChangeRobots: c?.canChangeRobots ?? false,
+      requiresHumanApproval: c?.requiresHumanApproval ?? true
+    };
+    const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
+    const ct = cr.changeType;
+    const deny = (flag: string) =>
+      `Capability denied for this project: ${flag} is disabled. Enable it on the project's ProjectCapability to allow this change.`;
+
+    if (cap.requiresHumanApproval && !cr.approvedBy) {
+      return "This project requires human approval but the change request has no approvedBy. Approve it with an explicit reviewer first.";
+    }
+    if (payload["status"] === "publish" && !cap.canPublish) return deny("canPublish");
+    if (typeof payload["slug"] === "string" && payload["slug"] && !cap.canChangeSlugs) return deny("canChangeSlugs");
+    if (ct.startsWith("rankmath_") && !cap.canUpdateRankmath) return deny("canUpdateRankmath");
+    if (ct === "wordpress_create_post_with_elementor" && !cap.canUpdateElementor) return deny("canUpdateElementor");
+    if (
+      (ct === "wordpress_create_post" || ct === "wordpress_create_post_with_elementor") &&
+      !cap.canCreateDrafts
+    ) {
+      return deny("canCreateDrafts");
+    }
+    if (ct === "rankmath_update_canonical" && !cap.canChangeCanonical) return deny("canChangeCanonical");
+    if (ct === "rankmath_update_robots" && !cap.canChangeRobots) return deny("canChangeRobots");
+    return null;
   }
 
   private async wpClient(projectId: string): Promise<WordPressClient> {
@@ -128,15 +225,21 @@ export class ExecuteService {
     if (!postId) throw new Error("Cannot determine post id for RankMath update.");
 
     const before = await rm.getPostMeta(postId);
+    const schemaType = payload["schemaType"] as string | undefined;
+    const schemaPayload = payload["schemaPayload"] as Record<string, unknown> | undefined;
     const next = await rm.updatePostMeta({
       postId,
       metaTitle: payload["metaTitle"] as string | undefined,
       metaDescription: payload["metaDescription"] as string | undefined,
       focusKeyword: payload["focusKeyword"] as string | undefined,
       secondaryKeywords: payload["secondaryKeywords"] as string[] | undefined,
-      schemaType: payload["schemaType"] as string | undefined,
-      schemaPayload: payload["schemaPayload"] as Record<string, unknown> | undefined
+      schemaType
     });
+    // RankMath stores schema objects under their own meta keys (rank_math_schema_<Type>),
+    // written through the mu-plugin bridge rather than the standard meta surface.
+    if (schemaType && schemaPayload) {
+      await rm.setSchema(postId, schemaType, schemaPayload);
+    }
     await this.prisma.changeRequest.update({
       where: { id: cr.id },
       data: { beforePayload: before as never, rollbackPayload: before as never }
@@ -225,6 +328,74 @@ export class ExecuteService {
       excerpt: payload["excerpt"] as string | undefined
     });
     return { before: { title: before.title, content: before.content }, after: { id: updated.id, link: updated.link } };
+  }
+
+  private async applyUpdateFocusKeywords(
+    project: { id: string },
+    cr: { afterPayload: unknown; targetEntityId: string | null }
+  ): Promise<Record<string, unknown>> {
+    const rm = await this.rankmathClient(project.id);
+    const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
+    const postId = parsePostId(cr.targetEntityId ?? payload["postId"]);
+    if (!postId) throw new Error("Cannot determine post id for focus keyword update.");
+    const raw = payload["focus_keywords"] ?? payload["focusKeywords"];
+    const list = Array.isArray(raw) ? raw.map((x) => String(x).trim()).filter(Boolean) : [];
+    if (list.length === 0) throw new Error("focus_keywords is required and must be a non-empty array.");
+    const before = await rm.getPostMeta(postId);
+    const after = await rm.updatePostMeta({ postId, focusKeyword: list[0], secondaryKeywords: list.slice(1) });
+    return { before, after };
+  }
+
+  private async applyUpdateSchema(
+    project: { id: string },
+    cr: { afterPayload: unknown; targetEntityId: string | null }
+  ): Promise<Record<string, unknown>> {
+    const rm = await this.rankmathClient(project.id);
+    const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
+    const postId = parsePostId(cr.targetEntityId ?? payload["postId"]);
+    if (!postId) throw new Error("Cannot determine post id for schema update.");
+    const schemaType = String(payload["schema_type"] ?? payload["schemaType"] ?? "").trim();
+    if (!schemaType) throw new Error("schema_type is required for a schema update.");
+    const schemaPayload = (payload["schema_payload"] ?? payload["schemaPayload"]) as
+      | Record<string, unknown>
+      | undefined;
+    const result = await rm.setSchema(postId, schemaType, schemaPayload ?? { "@type": schemaType });
+    return { schema: result };
+  }
+
+  private async applyUpdateCanonical(
+    project: { id: string },
+    cr: { afterPayload: unknown; targetEntityId: string | null }
+  ): Promise<Record<string, unknown>> {
+    const rm = await this.rankmathClient(project.id);
+    const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
+    const postId = parsePostId(cr.targetEntityId ?? payload["postId"]);
+    if (!postId) throw new Error("Cannot determine post id for canonical update.");
+    const canonical = payload["canonical_url"] ?? payload["canonicalUrl"];
+    if (typeof canonical !== "string" || !canonical) {
+      throw new Error("canonical_url is required to apply a canonical change.");
+    }
+    const before = await rm.getPostMeta(postId);
+    const after = await rm.updatePostMeta({ postId, canonicalUrl: canonical });
+    return { before, after };
+  }
+
+  private async applyUpdateRobots(
+    project: { id: string },
+    cr: { afterPayload: unknown; targetEntityId: string | null }
+  ): Promise<Record<string, unknown>> {
+    const rm = await this.rankmathClient(project.id);
+    const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
+    const postId = parsePostId(cr.targetEntityId ?? payload["postId"]);
+    if (!postId) throw new Error("Cannot determine post id for robots update.");
+    const raw = payload["robots"];
+    const robots = Array.isArray(raw) ? raw.map((x) => String(x).trim()).filter(Boolean) : [];
+    if (robots.length === 0) {
+      throw new Error('robots is required and must be a non-empty array (e.g. ["noindex","nofollow"]).');
+    }
+    const before = await rm.getPostMeta(postId);
+    const after = await rm.updatePostMeta({ postId, robots });
+    return { before, after };
   }
 
   private async applyCreateRedirection(project: { id: string }, cr: { afterPayload: unknown }): Promise<Record<string, unknown>> {
