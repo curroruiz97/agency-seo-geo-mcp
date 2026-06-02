@@ -204,38 +204,51 @@ export function createOAuthLoginHandler(provider: InMemoryOAuthProvider) {
   };
 }
 
-const BRAND_LOGO_SVG = `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-<defs><linearGradient id="amg" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-<stop stop-color="#a98bff"/><stop offset="1" stop-color="#5b46ff"/></linearGradient></defs>
-<path d="M24 3.6 41.86 13.8v20.4L24 44.4 6.14 34.2V13.8L24 3.6Z" stroke="url(#amg)" stroke-width="2.1" fill="rgba(109,94,252,.10)"/>
-<path d="M24 14.6v18.8M15.4 19.4 24 24.3l8.6-4.9" stroke="url(#amg)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const LOGO_URL = "https://avenuemedia.io/wp-content/uploads/2024/08/Logo-Avenue-Media-White-PNG-2025-II-1024x108.png";
+
+// Real Avenue Media wordmark (white PNG), centred. Falls back to a styled text
+// wordmark if the image cannot load, so the page never looks broken.
+const LOGO_HTML = `<img class="logo" src="${LOGO_URL}" alt="Avenue Media" onerror="this.remove();var w=document.getElementById('wmf');if(w)w.style.display='block'">
+    <div id="wmf" class="wmf">Avenue Media</div>`;
 
 const PAGE_STYLE = `*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#07070b;--card:rgba(19,19,27,.72);--line:rgba(255,255,255,.09);--txt:#f4f4f7;--muted:#8b8b9c;--accent:#6d5efc}
+@property --bd{syntax:'<angle>';initial-value:0deg;inherits:false}
+:root{--bg:#06060a;--txt:#f5f5f8;--muted:#8a8a9c;--accent:#6d5efc;--accent2:#a98bff}
 html,body{height:100%}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;min-height:100svh;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(130px);opacity:.5;z-index:0;pointer-events:none}
-body::before{width:560px;height:560px;top:-190px;left:-130px;background:radial-gradient(circle,#5b46ff,transparent 70%)}
-body::after{width:620px;height:620px;bottom:-230px;right:-170px;background:radial-gradient(circle,#8b3cff,transparent 70%)}
-.card{position:relative;z-index:1;width:100%;max-width:404px;background:var(--card);backdrop-filter:blur(24px) saturate(150%);-webkit-backdrop-filter:blur(24px) saturate(150%);border:1px solid var(--line);border-radius:24px;padding:42px 38px 30px;box-shadow:0 40px 90px -24px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.06);animation:rise .65s cubic-bezier(.2,.7,.2,1) both}
-@keyframes rise{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
-.logo{display:flex;align-items:center;gap:12px;margin-bottom:32px}
-.logo svg{width:42px;height:42px;display:block}
-.wm{font-weight:600;font-size:14px;letter-spacing:.16em;text-transform:uppercase}.wm span{color:var(--muted)}
-h1{font-size:27px;line-height:1.18;font-weight:600;letter-spacing:-.02em;margin-bottom:9px}
-.sub{color:var(--muted);font-size:14.5px;line-height:1.55;margin-bottom:28px}
-label{display:block;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.glow{position:fixed;border-radius:50%;filter:blur(140px);z-index:0;pointer-events:none;will-change:transform}
+.glow.a{width:600px;height:600px;top:-200px;left:-150px;background:radial-gradient(circle,#5b46ff,transparent 70%);opacity:.55;animation:drift1 17s ease-in-out infinite alternate}
+.glow.b{width:660px;height:660px;bottom:-250px;right:-180px;background:radial-gradient(circle,#9b3cff,transparent 70%);opacity:.5;animation:drift2 21s ease-in-out infinite alternate}
+.glow.c{width:440px;height:440px;top:42%;left:54%;background:radial-gradient(circle,#2f7bff,transparent 70%);opacity:.26;animation:drift3 24s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(90px,70px) scale(1.18)}}
+@keyframes drift2{to{transform:translate(-80px,-60px) scale(1.12)}}
+@keyframes drift3{to{transform:translate(-70px,50px) scale(1.22)}}
+.card{position:relative;z-index:1;width:100%;max-width:430px;text-align:center;background:linear-gradient(180deg,rgba(22,22,32,.78),rgba(12,12,19,.84));backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:48px 42px 34px;box-shadow:0 50px 120px -30px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.07);animation:rise .85s cubic-bezier(.16,.84,.3,1) both}
+.card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.4px;background:conic-gradient(from var(--bd),transparent 0 30%,rgba(169,139,255,.85) 45%,rgba(123,94,255,1) 50%,rgba(169,139,255,.85) 55%,transparent 70% 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin 7s linear infinite;pointer-events:none}
+@keyframes spin{to{--bd:360deg}}
+@keyframes rise{from{opacity:0;transform:translateY(24px) scale(.955)}to{opacity:1;transform:none}}
+.logo{display:block;width:230px;max-width:78%;height:auto;margin:2px auto 28px;filter:drop-shadow(0 6px 22px rgba(123,94,255,.5));animation:fadeUp .8s .15s both}
+.wmf{display:none;font-size:19px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;margin:0 auto 28px;animation:fadeUp .8s .15s both}
+h1{font-size:28px;line-height:1.16;font-weight:600;letter-spacing:-.025em;margin-bottom:11px;animation:fadeUp .8s .26s both}
+.sub{color:var(--muted);font-size:14.5px;line-height:1.55;margin:0 auto 32px;max-width:312px;animation:fadeUp .8s .34s both}
+form{animation:fadeUp .8s .42s both}
 .field{margin-bottom:22px}
-input[type=password]{width:100%;padding:15px 16px;font-size:15px;color:#fff;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:13px;transition:border-color .2s,box-shadow .2s,background .2s;outline:none}
-input[type=password]::placeholder{color:#54546a;letter-spacing:.12em}
-input[type=password]:focus{border-color:var(--accent);background:rgba(255,255,255,.06);box-shadow:0 0 0 4px rgba(109,94,252,.2)}
-button{width:100%;padding:15px;font-size:15px;font-weight:600;color:#0a0a12;cursor:pointer;background:linear-gradient(180deg,#fff,#e7e7f1);border:0;border-radius:13px;transition:transform .15s,box-shadow .25s,filter .2s;box-shadow:0 12px 32px -10px rgba(123,94,255,.55)}
-button:hover{transform:translateY(-1px);box-shadow:0 18px 44px -12px rgba(123,94,255,.75);filter:brightness(1.03)}
+input[type=password]{width:100%;padding:16px;font-size:15px;text-align:center;letter-spacing:.16em;color:#fff;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:15px;transition:border-color .25s,box-shadow .25s,background .25s;outline:none}
+input[type=password]::placeholder{color:#50506a;letter-spacing:.05em}
+input[type=password]:focus{border-color:var(--accent);background:rgba(255,255,255,.06);box-shadow:0 0 0 4px rgba(109,94,252,.22)}
+button{position:relative;overflow:hidden;width:100%;padding:16px;font-size:15px;font-weight:600;color:#0a0a12;cursor:pointer;background:linear-gradient(180deg,#fff,#e6e6f1);border:0;border-radius:15px;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .3s,filter .2s;box-shadow:0 14px 38px -12px rgba(123,94,255,.6)}
+button::after{content:"";position:absolute;top:0;left:-140%;width:65%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.65),transparent);transform:skewX(-18deg)}
+button:hover{transform:translateY(-2px);box-shadow:0 24px 54px -14px rgba(123,94,255,.9);filter:brightness(1.04)}
+button:hover::after{animation:sheen .85s ease}
 button:active{transform:translateY(0)}
-.err{display:flex;align-items:center;gap:9px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:#ffb3b3;font-size:13.5px;line-height:1.4;padding:11px 14px;border-radius:12px;margin-bottom:22px}
+@keyframes sheen{from{left:-140%}to{left:140%}}
+.err{display:flex;align-items:center;gap:9px;text-align:left;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:#ffb3b3;font-size:13.5px;line-height:1.4;padding:11px 14px;border-radius:13px;margin-bottom:22px;animation:shake .45s}
 .err svg{width:16px;height:16px;flex:0 0 auto}
-.foot{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:26px;color:#56566a;font-size:12px;letter-spacing:.03em}
-.foot svg{width:13px;height:13px;opacity:.75}`;
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+.foot{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:30px;color:#54546a;font-size:12px;letter-spacing:.03em;animation:fadeUp .8s .5s both}
+.foot svg{width:13px;height:13px;opacity:.75}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001s!important;animation-iteration-count:1!important}}`;
 
 function renderLoginPage(input: {
   clientId: string;
@@ -264,19 +277,19 @@ function renderLoginPage(input: {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Avenue MCP · Autorizar conexión</title>
+<title>Avenue Media · Autorizar conexión</title>
 <style>${PAGE_STYLE}</style>
 </head>
 <body>
+  <div class="glow a"></div><div class="glow b"></div><div class="glow c"></div>
   <main class="card">
-    <div class="logo">${BRAND_LOGO_SVG}<div class="wm">Avenue<span> MCP</span></div></div>
+    ${LOGO_HTML}
     <h1>Autorizar conexión</h1>
     <p class="sub">Introduce la contraseña de la agencia para conceder acceso seguro a este conector.</p>
     ${errorBanner}
     <form method="POST" action="/oauth/login">
       <div class="field">
-        <label for="pw">Contraseña</label>
-        <input id="pw" type="password" name="password" autofocus required autocomplete="current-password" placeholder="••••••••••••">
+        <input type="password" name="password" autofocus required autocomplete="current-password" placeholder="Contraseña de la agencia">
       </div>
       ${hiddenFields}
       <button type="submit">Autorizar acceso</button>
@@ -293,13 +306,14 @@ function renderMessagePage(message: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Avenue MCP</title>
+<title>Avenue Media</title>
 <style>${PAGE_STYLE}</style>
 </head>
 <body>
-  <main class="card" style="text-align:center">
-    <div class="logo" style="justify-content:center">${BRAND_LOGO_SVG}<div class="wm">Avenue<span> MCP</span></div></div>
-    <p class="sub" style="margin-bottom:8px;font-size:15px;color:var(--txt)">${escapeHtml(message)}</p>
+  <div class="glow a"></div><div class="glow b"></div><div class="glow c"></div>
+  <main class="card">
+    ${LOGO_HTML}
+    <p class="sub" style="margin-bottom:6px;font-size:15px;color:var(--txt)">${escapeHtml(message)}</p>
   </main>
 </body>
 </html>`;
