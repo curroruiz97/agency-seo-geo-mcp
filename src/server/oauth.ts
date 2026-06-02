@@ -204,6 +204,39 @@ export function createOAuthLoginHandler(provider: InMemoryOAuthProvider) {
   };
 }
 
+const BRAND_LOGO_SVG = `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<defs><linearGradient id="amg" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+<stop stop-color="#a98bff"/><stop offset="1" stop-color="#5b46ff"/></linearGradient></defs>
+<path d="M24 3.6 41.86 13.8v20.4L24 44.4 6.14 34.2V13.8L24 3.6Z" stroke="url(#amg)" stroke-width="2.1" fill="rgba(109,94,252,.10)"/>
+<path d="M24 14.6v18.8M15.4 19.4 24 24.3l8.6-4.9" stroke="url(#amg)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+const PAGE_STYLE = `*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#07070b;--card:rgba(19,19,27,.72);--line:rgba(255,255,255,.09);--txt:#f4f4f7;--muted:#8b8b9c;--accent:#6d5efc}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;min-height:100svh;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(130px);opacity:.5;z-index:0;pointer-events:none}
+body::before{width:560px;height:560px;top:-190px;left:-130px;background:radial-gradient(circle,#5b46ff,transparent 70%)}
+body::after{width:620px;height:620px;bottom:-230px;right:-170px;background:radial-gradient(circle,#8b3cff,transparent 70%)}
+.card{position:relative;z-index:1;width:100%;max-width:404px;background:var(--card);backdrop-filter:blur(24px) saturate(150%);-webkit-backdrop-filter:blur(24px) saturate(150%);border:1px solid var(--line);border-radius:24px;padding:42px 38px 30px;box-shadow:0 40px 90px -24px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.06);animation:rise .65s cubic-bezier(.2,.7,.2,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+.logo{display:flex;align-items:center;gap:12px;margin-bottom:32px}
+.logo svg{width:42px;height:42px;display:block}
+.wm{font-weight:600;font-size:14px;letter-spacing:.16em;text-transform:uppercase}.wm span{color:var(--muted)}
+h1{font-size:27px;line-height:1.18;font-weight:600;letter-spacing:-.02em;margin-bottom:9px}
+.sub{color:var(--muted);font-size:14.5px;line-height:1.55;margin-bottom:28px}
+label{display:block;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.field{margin-bottom:22px}
+input[type=password]{width:100%;padding:15px 16px;font-size:15px;color:#fff;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:13px;transition:border-color .2s,box-shadow .2s,background .2s;outline:none}
+input[type=password]::placeholder{color:#54546a;letter-spacing:.12em}
+input[type=password]:focus{border-color:var(--accent);background:rgba(255,255,255,.06);box-shadow:0 0 0 4px rgba(109,94,252,.2)}
+button{width:100%;padding:15px;font-size:15px;font-weight:600;color:#0a0a12;cursor:pointer;background:linear-gradient(180deg,#fff,#e7e7f1);border:0;border-radius:13px;transition:transform .15s,box-shadow .25s,filter .2s;box-shadow:0 12px 32px -10px rgba(123,94,255,.55)}
+button:hover{transform:translateY(-1px);box-shadow:0 18px 44px -12px rgba(123,94,255,.75);filter:brightness(1.03)}
+button:active{transform:translateY(0)}
+.err{display:flex;align-items:center;gap:9px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:#ffb3b3;font-size:13.5px;line-height:1.4;padding:11px 14px;border-radius:12px;margin-bottom:22px}
+.err svg{width:16px;height:16px;flex:0 0 auto}
+.foot{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:26px;color:#56566a;font-size:12px;letter-spacing:.03em}
+.foot svg{width:13px;height:13px;opacity:.75}`;
+
 function renderLoginPage(input: {
   clientId: string;
   redirectUri: string;
@@ -214,32 +247,60 @@ function renderLoginPage(input: {
 }): string {
   const hidden = (name: string, value: string) =>
     `<input type="hidden" name="${escapeHtml(name)}" value="${escapeHtml(value)}">`;
+  const hiddenFields = [
+    hidden("client_id", input.clientId),
+    hidden("redirect_uri", input.redirectUri),
+    hidden("code_challenge", input.codeChallenge),
+    input.state ? hidden("state", input.state) : "",
+    input.scopes.length > 0 ? hidden("scope", input.scopes.join(" ")) : ""
+  ]
+    .filter(Boolean)
+    .join("\n      ");
   const errorBanner = input.error
-    ? `<p style="color:#b91c1c;margin:0 0 12px">Contraseña incorrecta. Inténtalo de nuevo.</p>`
+    ? `<div class="err"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3.5h.01M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Contraseña incorrecta. Vuelve a intentarlo.</div>`
     : "";
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Avenue MCP — Autorizar conexión</title></head>
-<body style="font-family:system-ui,sans-serif;background:#f3f4f6;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center">
-<form method="POST" action="/oauth/login" style="background:#fff;padding:32px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);width:320px">
-<h1 style="font-size:18px;margin:0 0 4px">Avenue MCP</h1>
-<p style="color:#6b7280;margin:0 0 20px;font-size:14px">Autoriza el acceso introduciendo la contraseña de la agencia.</p>
-${errorBanner}
-<label style="display:block;font-size:13px;margin-bottom:6px">Contraseña</label>
-<input type="password" name="password" autofocus required autocomplete="current-password"
- style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:16px">
-${hidden("client_id", input.clientId)}
-${hidden("redirect_uri", input.redirectUri)}
-${hidden("code_challenge", input.codeChallenge)}
-${input.state ? hidden("state", input.state) : ""}
-${input.scopes.length > 0 ? hidden("scope", input.scopes.join(" ")) : ""}
-<button type="submit" style="width:100%;padding:10px;background:#4f46e5;color:#fff;border:0;border-radius:8px;font-size:14px;cursor:pointer">Autorizar</button>
-</form></body></html>`;
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Avenue MCP · Autorizar conexión</title>
+<style>${PAGE_STYLE}</style>
+</head>
+<body>
+  <main class="card">
+    <div class="logo">${BRAND_LOGO_SVG}<div class="wm">Avenue<span> MCP</span></div></div>
+    <h1>Autorizar conexión</h1>
+    <p class="sub">Introduce la contraseña de la agencia para conceder acceso seguro a este conector.</p>
+    ${errorBanner}
+    <form method="POST" action="/oauth/login">
+      <div class="field">
+        <label for="pw">Contraseña</label>
+        <input id="pw" type="password" name="password" autofocus required autocomplete="current-password" placeholder="••••••••••••">
+      </div>
+      ${hiddenFields}
+      <button type="submit">Autorizar acceso</button>
+    </form>
+    <div class="foot"><svg viewBox="0 0 24 24" fill="none"><path d="M6 10V8a6 6 0 1 1 12 0v2" stroke="currentColor" stroke-width="2"/><rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2"/></svg>Conexión cifrada · OAuth 2.1 + PKCE</div>
+  </main>
+</body>
+</html>`;
 }
 
 function renderMessagePage(message: string): string {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Avenue MCP</title></head>
-<body style="font-family:system-ui,sans-serif;background:#f3f4f6;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center">
-<p style="background:#fff;padding:24px 32px;border-radius:12px;color:#374151;max-width:360px;text-align:center">${escapeHtml(message)}</p>
-</body></html>`;
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Avenue MCP</title>
+<style>${PAGE_STYLE}</style>
+</head>
+<body>
+  <main class="card" style="text-align:center">
+    <div class="logo" style="justify-content:center">${BRAND_LOGO_SVG}<div class="wm">Avenue<span> MCP</span></div></div>
+    <p class="sub" style="margin-bottom:8px;font-size:15px;color:var(--txt)">${escapeHtml(message)}</p>
+  </main>
+</body>
+</html>`;
 }
