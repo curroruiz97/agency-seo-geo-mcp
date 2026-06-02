@@ -24,14 +24,14 @@ PORT=3000
 PUBLIC_BASE_URL=https://lava.avenuemedia.io
 READ_ONLY_MODE=true
 ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com
-REQUIRE_MCP_AUTH=false
-MCP_BEARER_TOKEN=
+REQUIRE_MCP_AUTH=true
+MCP_BEARER_TOKEN=<TOKEN_ALEATORIO>
 LOG_LEVEL=info
 DATABASE_URL=<supabase-pooler-url>
 DIRECT_URL=<supabase-migration-url>
 ```
 
-`REQUIRE_MCP_AUTH=false` is acceptable only while testing with seed/non-sensitive data. Revisit auth before real client data.
+Auth is mandatory: the server refuses to start in production without `MCP_BEARER_TOKEN` (and `REQUIRE_MCP_AUTH` defaults to `true`). Generate a token with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. Only set `REQUIRE_MCP_AUTH=false` for tokenless local development.
 
 ## Deploy Or Update
 

@@ -14,7 +14,9 @@ Añadir al `.env` que está en `/var/www/vhosts/avenuemedia.io/lava.avenuemedia.
 # CRÍTICO: si la pierdes, las credenciales cifradas en BD son irrecuperables.
 SECRETS_MASTER_KEY=____
 
-# Opcional: API key de SE Ranking account-wide (alternativa a por-proyecto).
+# Opcional: API key de SE Ranking account-wide. Solo la lee el script
+# scripts/seed-sites.mjs; el SERVIDOR no usa esta variable (en runtime la
+# credencial se registra cifrada con la tool register_seranking_key).
 SERANKING_API_KEY=____
 ```
 
@@ -158,7 +160,7 @@ Para que el sistema funcione en cada sitio WordPress:
 
 ## 7. SE Ranking: límites a confirmar
 
-- Tu plan SE Ranking → confirmar API calls/minuto (rate limit). El cliente está configurado a **120 req/min** por defecto; ajustar si tu plan es menor.
+- Tu plan SE Ranking → confirmar API calls/minuto (rate limit). El cliente está configurado a **240 req/min (Project API)** y **480 req/min (Data API)** por defecto; ajustar en `src/clients/seranking.ts` si tu plan es menor.
 - Si tienes más de un workspace en SE Ranking, dime cuál y filtramos.
 
 ## 8. Resumen ejecutivo de qué falta hacer YO vs TÚ

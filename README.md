@@ -45,7 +45,7 @@ El proyecto ya incluye una base de ChatGPT App:
 - CSP y domain declarados;
 - `_meta.ui.resourceUri` y `openai/outputTemplate` en todas las tools.
 
-El MCP publica 41 acciones para que ChatGPT pueda detectar el conector como utilizable. Cada tool publica `title`, `description`, `inputSchema`, `outputSchema`, `annotations`, `structuredContent` y metadata de invocacion compatible con ChatGPT Apps/Builder.
+El MCP publica 57 acciones para que ChatGPT pueda detectar el conector como utilizable. Cada tool publica `title`, `description`, `inputSchema`, `outputSchema`, `annotations`, `structuredContent` y metadata de invocacion compatible con ChatGPT Apps/Builder.
 
 Base:
 
@@ -156,7 +156,7 @@ Tambien se puede reiniciar desde el panel Node.js de Plesk con `Restart App`.
 ## Prioridad Inmediata
 
 1. Desplegar `main` en VPS y confirmar `https://lava.avenuemedia.io/version` con `0.4.0`.
-2. Confirmar que `tools/list` devuelve 41 tools con annotations, output templates y sin schemas `$ref`.
+2. Confirmar que `tools/list` devuelve 57 tools con annotations, output templates y sin schemas `$ref`.
 3. Confirmar que Plesk Node.js carga `HOST=127.0.0.1`.
 4. Confirmar que Plesk Node.js carga `DATABASE_URL` y `DIRECT_URL`.
 5. Confirmar `https://lava.avenuemedia.io/ready` con `database: configured`.
@@ -172,7 +172,7 @@ Pasos en Claude.ai:
 1. Ir a Settings → Connectors → Add custom connector.
 2. URL: `https://lava.avenuemedia.io/mcp`.
 3. Si `REQUIRE_MCP_AUTH=true`, pegar el bearer token en el campo de autenticacion.
-4. Guardar. Claude llamara `initialize` y `tools/list` y debera mostrar las 41 acciones.
+4. Guardar. Claude llamara `initialize` y `tools/list` y debera mostrar las 57 acciones.
 
 Verificacion manual (igual que en ChatGPT, pero usando un Origin de Claude):
 
@@ -189,4 +189,4 @@ Notas:
 - `ALLOWED_ORIGINS` debe incluir `https://claude.ai` y `https://claude.com` (ya viene por defecto).
 - El widget UI `ui://widget/avenue-ai-v1.html` es una extension de ChatGPT Apps y Claude no lo renderiza, pero las tools funcionan normalmente.
 - Las metadatos `openai/*` se ignoran en Claude sin romper nada.
-- Para distribucion publica via direc
+- Para distribucion publica via directorios/registros de conectores (ChatGPT Apps / Claude Connectors), mantener el endpoint `/mcp` en HTTPS con `MCP_BEARER_TOKEN` configurado y `ALLOW_PUBLIC_MCP_DISCOVERY=true` para permitir el descubrimiento previo a la autenticacion.

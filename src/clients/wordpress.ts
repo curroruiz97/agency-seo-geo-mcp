@@ -156,6 +156,7 @@ export class WordPressClient {
     mimeType?: string;
   }): Promise<{ id: number; sourceUrl: string }> {
     // Two-step: fetch the asset and POST it as multipart.
+    assertPublicHttpUrl(opts.fileUrl);
     const assetRes = await fetch(opts.fileUrl);
     if (!assetRes.ok) throw new Error(`Could not fetch media source: ${opts.fileUrl}`);
     const buf = Buffer.from(await assetRes.arrayBuffer());
@@ -216,4 +217,33 @@ function toFull(raw: Record<string, unknown>): WPPostFull {
     tags: Array.isArray(raw["tags"]) ? (raw["tags"] as number[]) : [],
     featuredMediaId: typeof raw["featured_media"] === "number" ? (raw["featured_media"] as number) : undefined
   };
+}
+
+/**
+ * SSRF guard for server-side media fetches. Best-effort host allow-listing:
+ * rejects non-http(s) schemes, loopback, link-local, RFC1918 private ranges and
+ * cloud metadata endpoints. Note: this checks the literal host only and does not
+ * resolve DNS, so it is not a defence against DNS rebinding — add resolution +
+ * re-check at connect time before exposing this to untrusted callers.
+ */
+function assertPublicHttpUrl(raw: string): void {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`Invalid media source URL: ${raw}`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`Media source URL must be http(s): ${raw}`);
+  }
+  const host = url.hostname.toLowerCase();
+  const blocked =
+    host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") ||
+    host === "metadata.google.internal" || host === "0.0.0.0" || host === "::1" ||
+    /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) ||
+    host.startsWith("fc") || host.startsWith("fd"); // unique-local IPv6
+  if (blocked) {
+    throw new Error(`Media source URL host is not allowed (private/loopback/metadata): ${host}`);
+  }
 }

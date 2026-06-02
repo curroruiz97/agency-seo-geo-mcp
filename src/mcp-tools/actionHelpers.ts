@@ -3,7 +3,7 @@ import type { AppContext } from "../app/appContext.js";
 import { isDatabaseUrlConfigured } from "../config/database.js";
 
 export function siteId() {
-  return z.string().min(1).describe("Agency project/site id from list_sites or list_projects.");
+  return z.string().uuid().describe("Agency project/site id (UUID) from list_sites or list_projects.");
 }
 
 export function optionalText() {

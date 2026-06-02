@@ -10,9 +10,12 @@ const redactPaths = [
   "req.headers['x-auth-token']",
   "res.headers['set-cookie']",
   "*.password",
+  "*.applicationPassword",
   "*.token",
+  "*.bridgeToken",
   "*.secret",
-  "*.apiKey"
+  "*.apiKey",
+  "*.encryptedPayload"
 ];
 
 export function createLogger(config: Pick<AppConfig, "LOG_LEVEL">) {

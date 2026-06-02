@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { Logger } from "pino";
 import { type SerankingPositionEntry } from "../clients/seranking.js";
 import { CredentialsService } from "./credentials.js";
@@ -23,7 +23,7 @@ export class ExtractService {
   constructor(private prisma: PrismaClient, private credentials: CredentialsService, private logger?: Logger) {}
 
   async runForProject(projectId: string): Promise<{ run: ExtractionRun; stats: ExtractStats }> {
-    const p: any = this.prisma as any;
+    const p = this.prisma;
     const project = await p.project.findUniqueOrThrow({ where: { id: projectId } });
     if (!project.serankingProjectId) throw new Error(`Project ${projectId} has no serankingProjectId.`);
 
@@ -129,12 +129,12 @@ export class ExtractService {
                     category: issue.category || section.section,
                     severity: issue.severity, url: issue.affectedUrl,
                     message: issue.message,
-                    details: (issue.snippet as object) ?? {}
+                    details: (issue.snippet ?? {}) as Prisma.InputJsonValue
                   },
                   update: {
                     category: issue.category || section.section,
                     severity: issue.severity, message: issue.message,
-                    details: (issue.snippet as object) ?? {},
+                    details: (issue.snippet ?? {}) as Prisma.InputJsonValue,
                     lastSeenAt: new Date(), resolvedAt: null
                   }
                 });
@@ -154,7 +154,7 @@ export class ExtractService {
       stats.durationMs = Date.now() - startTime;
       const finished = await p.extractionRun.update({
         where: { id: run.id },
-        data: { status: "completed", finishedAt: new Date(), stats }
+        data: { status: "completed", finishedAt: new Date(), stats: stats as unknown as Prisma.InputJsonValue }
       });
       this.logger?.info({ projectId, stats }, "Extract run completed");
       return { run: finished, stats };
@@ -172,7 +172,7 @@ export class ExtractService {
   }
 
   async runForAllActiveProjects(): Promise<Array<{ projectId: string; ok: boolean; stats?: ExtractStats; error?: string }>> {
-    const p: any = this.prisma as any;
+    const p = this.prisma;
     const projects = await p.project.findMany({
       where: { status: "active", serankingProjectId: { not: null }, domain: { not: "__global__" } },
       select: { id: true, name: true }

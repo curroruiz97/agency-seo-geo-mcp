@@ -52,7 +52,7 @@ El codigo tiene:
 - `/ready`
 - `/version`
 - `/mcp`
-- 41 tools MCP publicadas para ChatGPT
+- 57 tools MCP publicadas para ChatGPT
 - herramienta `search`
 - herramienta `fetch`
 - widget ChatGPT App en `ui://widget/avenue-ai-v1.html`
@@ -87,9 +87,9 @@ PORT=3000
 PUBLIC_BASE_URL=https://lava.avenuemedia.io
 READ_ONLY_MODE=true
 ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com
-REQUIRE_MCP_AUTH=false
+REQUIRE_MCP_AUTH=true
 ALLOW_PUBLIC_MCP_DISCOVERY=true
-MCP_BEARER_TOKEN=
+MCP_BEARER_TOKEN=<TOKEN_ALEATORIO>
 LOG_LEVEL=info
 DATABASE_URL=postgresql://postgres.bfidzlbmkpegnndijosw:<PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true
 DIRECT_URL=postgresql://postgres.bfidzlbmkpegnndijosw:<PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
@@ -220,7 +220,7 @@ Deben salir muchas tools. Como minimo:
 - `gsc_get_search_performance`
 - `ga_get_traffic_overview`
 
-En la version `0.4.0`, el servidor debe devolver 41 tools. Todas deben tener metadata completa para ChatGPT:
+En la version `0.4.0`, el servidor debe devolver 57 tools. Todas deben tener metadata completa para ChatGPT:
 
 ```text
 name
@@ -242,7 +242,7 @@ curl -s https://lava.avenuemedia.io/mcp \
   --data '{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"ui://widget/avenue-ai-v1.html"}}'
 ```
 
-Si el comando anterior devuelve 41 tools pero ChatGPT Builder sigue diciendo que hay 0 acciones, lo mas probable es cache/indexacion del conector antiguo. La solucion practica es borrar ese conector y crear uno nuevo con la misma URL:
+Si el comando anterior devuelve 57 tools pero ChatGPT Builder sigue diciendo que hay 0 acciones, lo mas probable es cache/indexacion del conector antiguo. La solucion practica es borrar ese conector y crear uno nuevo con la misma URL:
 
 ```text
 https://lava.avenuemedia.io/mcp
@@ -250,7 +250,7 @@ https://lava.avenuemedia.io/mcp
 
 Si hay bearer token en el MCP, deja `ALLOW_PUBLIC_MCP_DISCOVERY=true`. Asi ChatGPT puede leer el catalogo de acciones y el widget (`initialize`, `tools/list`, `resources/list`, `resources/read`) aunque las ejecuciones reales (`tools/call`) sigan protegidas por `MCP_BEARER_TOKEN`.
 
-Despues probar `list_projects`. Debe devolver los 3 proyectos seed si Supabase esta cargado.
+Despues probar `list_projects`. Debe devolver los 2 proyectos activos si Supabase esta cargado (el seed crea 3, pero uno queda en `paused` y el filtro por defecto es `active`).
 
 Tambien puedes probar una escritura segura como `update_post`. No debe tocar WordPress. Debe crear una propuesta interna/change request o indicar por que no puede persistirla.
 
@@ -261,7 +261,7 @@ Solo conectar ChatGPT cuando:
 - `https://lava.avenuemedia.io/health` funciona.
 - `https://lava.avenuemedia.io/version` devuelve `0.4.0`.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
-- `https://lava.avenuemedia.io/mcp` lista 41 tools.
+- `https://lava.avenuemedia.io/mcp` lista 57 tools.
 - `resources/read` devuelve `ui://widget/avenue-ai-v1.html`.
 - `http://212.227.90.205:3000` no responde desde fuera.
 

@@ -93,6 +93,12 @@ export class HttpClient {
     const maxRetries = this.options.maxRetries ?? 3;
     const timeoutMs = this.options.timeoutMs ?? 30_000;
 
+    // Only safe methods may be retried on 5xx / transport errors: retrying a
+    // POST/PUT/PATCH/DELETE whose write may already have applied risks duplicate
+    // side effects (e.g. duplicate posts or redirections). A 429 is safe to retry
+    // for any method because the request was rejected before processing.
+    const idempotent = method === "GET";
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -100,10 +106,10 @@ export class HttpClient {
         const res = await fetch(url, { ...fetchInit, signal: ctrl.signal });
         clearTimeout(t);
 
-        if (res.status === 429 || res.status >= 500) {
+        if (res.status === 429 || (res.status >= 500 && idempotent)) {
           if (attempt < maxRetries) {
             const backoff = Math.min(10_000, 500 * Math.pow(2, attempt));
-            this.options.logger?.warn({ url, status: res.status, attempt }, "HTTP retry");
+            this.options.logger?.warn({ url, method, status: res.status, attempt }, "HTTP retry");
             await new Promise((r) => setTimeout(r, backoff));
             continue;
           }
@@ -125,9 +131,9 @@ export class HttpClient {
       } catch (e) {
         clearTimeout(t);
         if (e instanceof HttpError) throw e;
-        if (attempt < maxRetries) {
+        if (idempotent && attempt < maxRetries) {
           const backoff = Math.min(10_000, 500 * Math.pow(2, attempt));
-          this.options.logger?.warn({ url, attempt, err: String(e) }, "HTTP transport retry");
+          this.options.logger?.warn({ url, method, attempt, err: String(e) }, "HTTP transport retry");
           await new Promise((r) => setTimeout(r, backoff));
           continue;
         }

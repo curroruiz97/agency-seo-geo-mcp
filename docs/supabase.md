@@ -26,7 +26,9 @@ The password must live only in `.env` on the machine/server. Never commit it.
 
 ## Current Schema
 
-The initial Prisma migration creates:
+Two Prisma migrations build 15 tables.
+
+`20260513235000_init_project_registry`:
 
 - `clients`
 - `projects`
@@ -37,10 +39,20 @@ The initial Prisma migration creates:
 - `action_logs`
 - `reports`
 
+`20260602120000_add_extract_layer`:
+
+- `extraction_runs`
+- `keywords`
+- `keyword_snapshots`
+- `audit_findings`
+- `competitors`
+- `content_gaps`
+- `content_drafts`
+
 Seed creates:
 
 - 1 pilot client
-- 3 pilot projects
+- 3 pilot projects (2 active, 1 paused — so `list_projects` returns 2 by default)
 
 ## Commands
 

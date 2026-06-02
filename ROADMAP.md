@@ -40,7 +40,7 @@ Completado:
   - MIME `text/html;profile=mcp-app`
   - CSP y domain declarados
   - `_meta.ui.resourceUri` y `openai/outputTemplate` en las tools
-- Superficie MCP amplia de 41 acciones para que ChatGPT detecte el conector:
+- Superficie MCP amplia de 57 acciones para que ChatGPT detecte el conector:
   - WordPress
   - Rank Math
   - SE Ranking
@@ -89,7 +89,7 @@ Tareas:
 - Reiniciar la app desde Plesk Node.js o con `touch tmp/restart.txt`.
 - Verificar `/ready` en local y dominio.
 - Confirmar `ss -lntp | grep 3000` mostrando `127.0.0.1:3000`.
-- Probar `/mcp` `tools/list` y confirmar 41 tools.
+- Probar `/mcp` `tools/list` y confirmar 57 tools.
 - Probar `resources/list` y `resources/read` para el widget.
 
 Criterios de aceptacion:
@@ -97,7 +97,7 @@ Criterios de aceptacion:
 - `https://lava.avenuemedia.io/health` OK.
 - `https://lava.avenuemedia.io/ready` devuelve `database: configured`.
 - `https://lava.avenuemedia.io/version` devuelve `0.4.0`.
-- `https://lava.avenuemedia.io/mcp` lista 41 tools MCP con annotations completas y UI template.
+- `https://lava.avenuemedia.io/mcp` lista 57 tools MCP con annotations completas y UI template.
 - `http://212.227.90.205:3000` no es accesible desde fuera.
 
 ## Fase 2: Conexion ChatGPT
@@ -111,15 +111,15 @@ Tareas:
 - Probar `ping`.
 - Probar `get_server_status`.
 - Probar `list_projects`.
-- Probar que `tools/list` muestra 41 acciones.
+- Probar que `tools/list` muestra 57 acciones.
 - Probar una accion de escritura segura, por ejemplo `update_post`, y confirmar que crea propuesta sin tocar WordPress.
 - Confirmar si ChatGPT necesita auth adicional.
 - Si Builder muestra 0 acciones pese a que `tools/list` devuelve 41, borrar el conector antiguo y crear uno nuevo para evitar metadata cacheada.
 
 Criterios:
 
-- ChatGPT detecta las 41 tools.
-- `list_projects` devuelve los 3 proyectos seed desde Supabase.
+- ChatGPT detecta las 57 tools.
+- `list_projects` devuelve los 2 proyectos activos (el seed crea 3, pero uno queda en `paused` y el filtro por defecto es `active`).
 - ChatGPT no muestra el MCP vacio en el editor.
 
 ## Fase 3: WordPress Read-Only

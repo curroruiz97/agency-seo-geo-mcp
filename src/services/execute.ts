@@ -218,13 +218,14 @@ export class ExecuteService {
     });
   }
 
-  private async applyRankMathMetadata(project: { id: string }, cr: { id: string; afterPayload: unknown; targetEntityId: string | null; url: string | null }): Promise<Record<string, unknown>> {
+  private async applyRankMathMetadata(project: { id: string }, cr: { id: string; afterPayload: unknown; targetEntityId: string | null; targetEntityType: string; url: string | null }): Promise<Record<string, unknown>> {
     const rm = await this.rankmathClient(project.id);
     const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
     const postId = parsePostId(cr.targetEntityId ?? payload["postId"]);
     if (!postId) throw new Error("Cannot determine post id for RankMath update.");
+    const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
 
-    const before = await rm.getPostMeta(postId);
+    const before = await rm.getPostMeta(postId, type);
     const schemaType = payload["schemaType"] as string | undefined;
     const schemaPayload = payload["schemaPayload"] as Record<string, unknown> | undefined;
     const next = await rm.updatePostMeta({
@@ -234,7 +235,7 @@ export class ExecuteService {
       focusKeyword: payload["focusKeyword"] as string | undefined,
       secondaryKeywords: payload["secondaryKeywords"] as string[] | undefined,
       schemaType
-    });
+    }, type);
     // RankMath stores schema objects under their own meta keys (rank_math_schema_<Type>),
     // written through the mu-plugin bridge rather than the standard meta surface.
     if (schemaType && schemaPayload) {
@@ -311,13 +312,23 @@ export class ExecuteService {
     return { postId: created.id, draftId: draft.id, previewLink: created.link };
   }
 
-  private async applyUpdatePost(project: { id: string }, cr: { afterPayload: unknown; targetEntityId: string | null; targetEntityType: string }): Promise<Record<string, unknown>> {
+  private async applyUpdatePost(project: { id: string }, cr: { id: string; afterPayload: unknown; targetEntityId: string | null; targetEntityType: string }): Promise<Record<string, unknown>> {
     const wp = await this.wpClient(project.id);
     const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
     const id = parsePostId(cr.targetEntityId);
     if (!id) throw new Error("targetEntityId required for update.");
-    const type = cr.targetEntityType === "wp_page" ? "page" : "post";
+    // Producers emit "wordpress_page" / "wp_page" / "rankmath_page"; anything
+    // ending in "page" must hit the pages endpoint, not posts.
+    const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
     const before = await wp.getPost(id, type);
+    // Persist a rollback snapshot before mutating, so the change can be reverted.
+    await this.prisma.changeRequest.update({
+      where: { id: cr.id },
+      data: {
+        beforePayload: { title: before.title, content: before.content, status: before.status, slug: before.slug } as never,
+        rollbackPayload: { id, type, title: before.title, content: before.content, status: before.status, slug: before.slug } as never
+      }
+    });
     const updated = await wp.updatePost({
       id,
       type,
@@ -332,23 +343,24 @@ export class ExecuteService {
 
   private async applyUpdateFocusKeywords(
     project: { id: string },
-    cr: { afterPayload: unknown; targetEntityId: string | null }
+    cr: { afterPayload: unknown; targetEntityId: string | null; targetEntityType: string }
   ): Promise<Record<string, unknown>> {
     const rm = await this.rankmathClient(project.id);
     const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
     const postId = parsePostId(cr.targetEntityId ?? payload["postId"]);
     if (!postId) throw new Error("Cannot determine post id for focus keyword update.");
+    const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
     const raw = payload["focus_keywords"] ?? payload["focusKeywords"];
     const list = Array.isArray(raw) ? raw.map((x) => String(x).trim()).filter(Boolean) : [];
     if (list.length === 0) throw new Error("focus_keywords is required and must be a non-empty array.");
-    const before = await rm.getPostMeta(postId);
-    const after = await rm.updatePostMeta({ postId, focusKeyword: list[0], secondaryKeywords: list.slice(1) });
+    const before = await rm.getPostMeta(postId, type);
+    const after = await rm.updatePostMeta({ postId, focusKeyword: list[0], secondaryKeywords: list.slice(1) }, type);
     return { before, after };
   }
 
   private async applyUpdateSchema(
     project: { id: string },
-    cr: { afterPayload: unknown; targetEntityId: string | null }
+    cr: { afterPayload: unknown; targetEntityId: string | null; targetEntityType: string }
   ): Promise<Record<string, unknown>> {
     const rm = await this.rankmathClient(project.id);
     const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
@@ -365,36 +377,38 @@ export class ExecuteService {
 
   private async applyUpdateCanonical(
     project: { id: string },
-    cr: { afterPayload: unknown; targetEntityId: string | null }
+    cr: { afterPayload: unknown; targetEntityId: string | null; targetEntityType: string }
   ): Promise<Record<string, unknown>> {
     const rm = await this.rankmathClient(project.id);
     const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
     const postId = parsePostId(cr.targetEntityId ?? payload["postId"]);
     if (!postId) throw new Error("Cannot determine post id for canonical update.");
+    const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
     const canonical = payload["canonical_url"] ?? payload["canonicalUrl"];
     if (typeof canonical !== "string" || !canonical) {
       throw new Error("canonical_url is required to apply a canonical change.");
     }
-    const before = await rm.getPostMeta(postId);
-    const after = await rm.updatePostMeta({ postId, canonicalUrl: canonical });
+    const before = await rm.getPostMeta(postId, type);
+    const after = await rm.updatePostMeta({ postId, canonicalUrl: canonical }, type);
     return { before, after };
   }
 
   private async applyUpdateRobots(
     project: { id: string },
-    cr: { afterPayload: unknown; targetEntityId: string | null }
+    cr: { afterPayload: unknown; targetEntityId: string | null; targetEntityType: string }
   ): Promise<Record<string, unknown>> {
     const rm = await this.rankmathClient(project.id);
     const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
     const postId = parsePostId(cr.targetEntityId ?? payload["postId"]);
     if (!postId) throw new Error("Cannot determine post id for robots update.");
+    const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
     const raw = payload["robots"];
     const robots = Array.isArray(raw) ? raw.map((x) => String(x).trim()).filter(Boolean) : [];
     if (robots.length === 0) {
       throw new Error('robots is required and must be a non-empty array (e.g. ["noindex","nofollow"]).');
     }
-    const before = await rm.getPostMeta(postId);
-    const after = await rm.updatePostMeta({ postId, robots });
+    const before = await rm.getPostMeta(postId, type);
+    const after = await rm.updatePostMeta({ postId, robots }, type);
     return { before, after };
   }
 

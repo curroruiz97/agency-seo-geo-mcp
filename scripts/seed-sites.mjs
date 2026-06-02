@@ -186,7 +186,9 @@ async function main() {
 
   // Allow account-wide SE Ranking key via top-level env var as fallback.
   if (process.env.SERANKING_API_KEY) {
-    await upsertCredential(globalProject.id, "seranking", { apiKey: process.env.SERANKING_API_KEY }, "global");
+    // Use the same "default" label that register_seranking_key writes, so
+    // CredentialsService.getSeranking resolves it consistently.
+    await upsertCredential(globalProject.id, "seranking", { apiKey: process.env.SERANKING_API_KEY }, "default");
     console.log("✓ Global SE Ranking key stored on __global__ project.");
   }
 

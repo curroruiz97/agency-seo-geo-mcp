@@ -39,8 +39,8 @@ PORT=3000
 PUBLIC_BASE_URL=https://lava.avenuemedia.io
 READ_ONLY_MODE=true
 ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com
-REQUIRE_MCP_AUTH=false
-MCP_BEARER_TOKEN=
+REQUIRE_MCP_AUTH=true
+MCP_BEARER_TOKEN=<TOKEN_ALEATORIO>
 LOG_LEVEL=info
 DATABASE_URL=postgresql://postgres.bfidzlbmkpegnndijosw:<PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true
 DIRECT_URL=postgresql://postgres.bfidzlbmkpegnndijosw:<PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres

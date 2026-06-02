@@ -27,6 +27,11 @@ Docker and Caddy remain in the repository, but they are not the active productio
 - `src/server`: HTTP routes, security middleware and MCP transport.
 - `src/app`: dependency composition.
 - `src/mcp-tools`: MCP tool registration by feature group.
+- `src/clients`: HTTP clients for WordPress, Rank Math and SE Ranking, plus the Elementor adapter.
+- `src/services`: credentials, extract, strategy, execute and content-generation services.
+- `src/config`: env parsing, constants and database helpers.
+- `src/app-ui`: the Avenue AI widget MCP resource.
+- `src/utils`: crypto and logging helpers.
 - `src/domain`: business types and interfaces.
 - `src/db`: Prisma client and repositories.
 - `prisma`: database schema, migrations and seed.
@@ -46,7 +51,9 @@ MCP tool call
 
 ## Current Data Model
 
-Already modeled in Prisma:
+Already modeled in Prisma (15 tables across two migrations):
+
+Project registry (`20260513235000_init_project_registry`):
 
 - clients
 - projects
@@ -57,14 +64,24 @@ Already modeled in Prisma:
 - action_logs
 - reports
 
+Extract layer (`20260602120000_add_extract_layer`):
+
+- extraction_runs
+- keywords
+- keyword_snapshots
+- audit_findings
+- competitors
+- content_gaps
+- content_drafts
+
 ## Security Policy
 
 - Node should bind to `HOST=127.0.0.1` in VPS.
 - Public traffic must enter through `https://lava.avenuemedia.io`.
-- `READ_ONLY_MODE=true` remains mandatory.
+- `READ_ONLY_MODE=true` is enforced in code: `ExecuteService` refuses to apply any approved change while it is on.
 - Credentials must be encrypted before being written to DB.
 - MCP tools must never return secrets.
-- Real client data should not be exposed before the auth story is finalized.
+- The `/mcp` endpoint requires `MCP_BEARER_TOKEN`; the server refuses to boot in production without it. Only pre-auth discovery is public when `ALLOW_PUBLIC_MCP_DISCOVERY=true`.
 
 ## Future Integrations
 
