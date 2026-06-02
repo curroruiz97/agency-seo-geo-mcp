@@ -7,8 +7,12 @@ import { SERVICE_NAME, SERVICE_VERSION } from "../config/constants.js";
 import { createHttpLogger } from "../utils/logger.js";
 import { getHealthPayload, getReadinessPayload, getRootPayload } from "./health.js";
 import { handleMcpRequest } from "./mcp.js";
+import type { RequestHandler } from "express";
+import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from "@modelcontextprotocol/sdk/server/auth/router.js";
+import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { requestId } from "./requestId.js";
 import { requireMcpBearerToken, validateOrigin } from "./security.js";
+import { InMemoryOAuthProvider, createOAuthLoginHandler } from "./oauth.js";
 
 export function createHttpServer(context: AppContext) {
   const { config } = context;
@@ -35,6 +39,32 @@ export function createHttpServer(context: AppContext) {
     })
   );
   app.use(express.json({ limit: "1mb" }));
+
+  // Auth for /mcp. By default, the static bearer token middleware. If
+  // MCP_OAUTH_PASSWORD is set, enable a full OAuth flow (so Claude's connector
+  // can authenticate) while still accepting the static token for ChatGPT/curl.
+  const baseUrl = config.PUBLIC_BASE_URL.replace(/\/$/, "");
+  let mcpAuth: RequestHandler = requireMcpBearerToken(config);
+  if (config.MCP_OAUTH_PASSWORD) {
+    const oauthProvider = new InMemoryOAuthProvider({
+      password: config.MCP_OAUTH_PASSWORD,
+      staticToken: config.MCP_BEARER_TOKEN || undefined
+    });
+    app.use(
+      mcpAuthRouter({
+        provider: oauthProvider,
+        issuerUrl: new URL(baseUrl),
+        resourceServerUrl: new URL(`${baseUrl}/mcp`),
+        scopesSupported: ["mcp"],
+        resourceName: SERVICE_NAME
+      })
+    );
+    app.post("/oauth/login", express.urlencoded({ extended: false }), createOAuthLoginHandler(oauthProvider));
+    mcpAuth = requireBearerAuth({
+      verifier: oauthProvider,
+      resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(new URL(`${baseUrl}/mcp`))
+    });
+  }
 
   app.get("/", (_req, res) => {
     res.json(getRootPayload(config));
@@ -64,7 +94,7 @@ export function createHttpServer(context: AppContext) {
       legacyHeaders: false
     }),
     validateOrigin(config),
-    requireMcpBearerToken(config),
+    mcpAuth,
     async (req, res, next) => {
       try {
         await handleMcpRequest(context, req, res);

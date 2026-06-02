@@ -171,7 +171,7 @@ Pasos en Claude.ai:
 
 1. Ir a Settings → Connectors → Add custom connector.
 2. URL: `https://lava.avenuemedia.io/mcp`.
-3. Si `REQUIRE_MCP_AUTH=true`, pegar el bearer token en el campo de autenticacion.
+3. El conector de Claude **usa OAuth** (no admite token fijo). Si has configurado `MCP_OAUTH_PASSWORD` en el servidor, al conectar se abrirá una página de login: introduce esa contraseña para autorizar. (ChatGPT y curl siguen usando `MCP_BEARER_TOKEN`.)
 4. Guardar. Claude llamara `initialize` y `tools/list` y debera mostrar las 57 acciones.
 
 Verificacion manual (igual que en ChatGPT, pero usando un Origin de Claude):

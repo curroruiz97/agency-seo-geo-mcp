@@ -28,6 +28,11 @@ const envSchema = z.object({
     .default("true")
     .transform((value) => value.toLowerCase() === "true"),
   MCP_BEARER_TOKEN: z.string().optional().default(""),
+  // When set, enables the OAuth flow (Dynamic Client Registration + Authorization
+  // Code + PKCE) so Claude.ai's connector can authenticate. This value is the
+  // shared password shown on the /authorize login page. The static MCP_BEARER_TOKEN
+  // keeps working in parallel (ChatGPT / curl / the WordPress plugin).
+  MCP_OAUTH_PASSWORD: z.string().optional().default(""),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.string().optional().default(""),
   DIRECT_URL: z.string().optional().default(""),
