@@ -93,13 +93,15 @@ model Project {
   createdAt         DateTime        @default(now()) @map("created_at")
   updatedAt         DateTime        @updatedAt @map("updated_at")
 
-  client         Client              @relation(fields: [clientId], references: [id])
-  capabilities   ProjectCapability?
-  credentials    ProjectCredential[]
-  opportunities  Opportunity[]
-  changeRequests ChangeRequest[]
-  actionLogs     ActionLog[]
-  reports        Report[]
+  client           Client              @relation(fields: [clientId], references: [id])
+  capabilities     ProjectCapability?
+  credentials      ProjectCredential[]
+  opportunities    Opportunity[]
+  changeRequests   ChangeRequest[]
+  actionLogs       ActionLog[]
+  reports          Report[]
+  blogConfig       BlogConfig?
+  blogKeywordsUsed BlogKeywordUsed[]
 
   @@unique([domain])
   @@index([clientId])
@@ -431,4 +433,51 @@ model ContentDraft {
   @@index([projectId])
   @@index([status])
   @@map("content_drafts")
+}
+
+// ============================================================================
+// BLOG AUTOMATION layer: per-site blog config + used-keyword registry.
+// ============================================================================
+
+model BlogConfig {
+  id                String   @id @default(uuid()) @db.Uuid
+  projectId         String   @unique @map("project_id") @db.Uuid
+  configured        Boolean  @default(true)
+  sector            String?
+  seedKeywords      String[] @map("seed_keywords")
+  language          String   @default("es-ES")
+  city              String?
+  defaultCategoryId Int?     @map("default_category_id")
+  defaultAuthorId   Int?     @map("default_author_id")
+  renderMode        String   @default("theme-builder-single") @map("render_mode")
+  templateId        Int?     @map("template_id")
+  templateType      String?  @map("template_type")
+  templateName      String?  @map("template_name")
+  minImages         Int      @default(4) @map("min_images")
+  imageSource       String?  @map("image_source")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("blog_config")
+}
+
+model BlogKeywordUsed {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  keyword   String
+  secondary String[]
+  postId    String?  @map("post_id")
+  title     String?
+  slug      String?
+  status    String   @default("draft")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, keyword])
+  @@index([projectId])
+  @@map("blog_keywords_used")
 }

@@ -9,6 +9,7 @@ import { registerRankMathTools } from "./rankmath.tools.js";
 import { registerSerankingTools } from "./seranking.tools.js";
 import { registerSystemTools } from "./system.tools.js";
 import { registerWordPressTools } from "./wordpress.tools.js";
+import { registerBlogTools } from "./blog.tools.js";
 import { registerOrchestrationTools } from "./orchestration.tools.js";
 import { registerChangeRequestTools } from "./changeRequests.tools.js";
 import { registerHealthTools } from "./health.tools.js";
@@ -72,6 +73,7 @@ export function registerTools(server: McpServer, context: AppContext) {
   registerKnowledgeTools(server, context);
   registerProjectTools(server, context);
   registerWordPressTools(server, context);
+  registerBlogTools(server, context);
   registerRankMathTools(server, context);
   registerSerankingTools(server, context);
   registerGoogleSearchConsoleTools(server, context);
