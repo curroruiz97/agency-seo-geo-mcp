@@ -27,6 +27,7 @@ const config = loadConfig({
   READ_ONLY_MODE: "true",
   ALLOWED_ORIGINS: "https://chatgpt.com,https://chat.openai.com",
   REQUIRE_MCP_AUTH: "false",
+  APP_WIDGET_ENABLED: "true",
   LOG_LEVEL: "silent",
   DATABASE_URL: "",
   DIRECT_URL: ""

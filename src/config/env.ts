@@ -27,6 +27,13 @@ const envSchema = z.object({
     .string()
     .default("true")
     .transform((value) => value.toLowerCase() === "true"),
+  // ChatGPT Apps widget UI. OFF by default because its ui.domain is rejected by
+  // Claude ("Invalid ui.domain format: expected {hash}.claudemcpcontent.com"),
+  // which breaks the Claude connector UI. Enable only when serving ChatGPT Apps.
+  APP_WIDGET_ENABLED: z
+    .string()
+    .default("false")
+    .transform((value) => value.toLowerCase() === "true"),
   MCP_BEARER_TOKEN: z.string().optional().default(""),
   // When set, enables the OAuth flow (Dynamic Client Registration + Authorization
   // Code + PKCE) so Claude.ai's connector can authenticate. This value is the

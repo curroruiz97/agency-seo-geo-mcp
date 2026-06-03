@@ -79,7 +79,7 @@ export function registerTools(server: McpServer, context: AppContext) {
   registerOrchestrationTools(server, context);
   registerChangeRequestTools(server, context);
   registerHealthTools(server, context);
-  normalizeToolDescriptors(server);
+  normalizeToolDescriptors(server, context.config.APP_WIDGET_ENABLED);
 }
 
 function isReadOnlyTool(name: string) {
@@ -101,7 +101,7 @@ function titleFromName(name: string) {
     .join(" ");
 }
 
-function normalizeToolDescriptors(server: McpServer) {
+function normalizeToolDescriptors(server: McpServer, widgetEnabled: boolean) {
   const registered = (server as unknown as { _registeredTools?: Record<string, InternalRegisteredTool> })._registeredTools;
   if (!registered) {
     return;
@@ -119,26 +119,32 @@ function normalizeToolDescriptors(server: McpServer) {
       idempotentHint: readOnly,
       ...tool.annotations
     };
-    const existingMeta = tool._meta ?? {};
-    const existingUi =
-      existingMeta.ui && typeof existingMeta.ui === "object" && !Array.isArray(existingMeta.ui)
-        ? (existingMeta.ui as Record<string, unknown>)
-        : {};
 
-    tool._meta = {
-      ...existingMeta,
-      ui: {
-        resourceUri: AVENUE_AI_WIDGET_URI,
-        visibility: ["model", "app"],
-        ...existingUi
-      },
-      "ui/resourceUri": existingMeta["ui/resourceUri"] ?? AVENUE_AI_WIDGET_URI,
-      "openai/outputTemplate": existingMeta["openai/outputTemplate"] ?? AVENUE_AI_WIDGET_URI,
-      "openai/toolInvocation/invoking":
-        existingMeta["openai/toolInvocation/invoking"] ?? (readOnly ? "Consultando datos" : "Creando propuesta"),
-      "openai/toolInvocation/invoked":
-        existingMeta["openai/toolInvocation/invoked"] ?? (readOnly ? "Datos consultados" : "Propuesta creada")
-    };
+    // The ChatGPT Apps widget UI metadata is only attached when explicitly
+    // enabled. It is omitted by default because Claude rejects its ui.domain
+    // ("Invalid ui.domain format") and shows repeated "can't connect" errors.
+    if (widgetEnabled) {
+      const existingMeta = tool._meta ?? {};
+      const existingUi =
+        existingMeta.ui && typeof existingMeta.ui === "object" && !Array.isArray(existingMeta.ui)
+          ? (existingMeta.ui as Record<string, unknown>)
+          : {};
+
+      tool._meta = {
+        ...existingMeta,
+        ui: {
+          resourceUri: AVENUE_AI_WIDGET_URI,
+          visibility: ["model", "app"],
+          ...existingUi
+        },
+        "ui/resourceUri": existingMeta["ui/resourceUri"] ?? AVENUE_AI_WIDGET_URI,
+        "openai/outputTemplate": existingMeta["openai/outputTemplate"] ?? AVENUE_AI_WIDGET_URI,
+        "openai/toolInvocation/invoking":
+          existingMeta["openai/toolInvocation/invoking"] ?? (readOnly ? "Consultando datos" : "Creando propuesta"),
+        "openai/toolInvocation/invoked":
+          existingMeta["openai/toolInvocation/invoked"] ?? (readOnly ? "Datos consultados" : "Propuesta creada")
+      };
+    }
 
     delete tool.execution;
   }

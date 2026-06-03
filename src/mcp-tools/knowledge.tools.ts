@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AppContext } from "../app/appContext.js";
-import { AVENUE_AI_WIDGET_URI } from "../app-ui/avenueAppResource.js";
 import { jsonToolResponse } from "./response.js";
 
 const searchOutputSchema = {
@@ -38,9 +37,6 @@ export function registerKnowledgeTools(server: McpServer, context: AppContext) {
         openWorldHint: false,
         destructiveHint: false,
         idempotentHint: true
-      },
-      _meta: {
-        ui: { resourceUri: AVENUE_AI_WIDGET_URI, visibility: ["model", "app"] }
       }
     },
     async ({ query }) => {
@@ -80,9 +76,6 @@ export function registerKnowledgeTools(server: McpServer, context: AppContext) {
         openWorldHint: false,
         destructiveHint: false,
         idempotentHint: true
-      },
-      _meta: {
-        ui: { resourceUri: AVENUE_AI_WIDGET_URI, visibility: ["model", "app"] }
       }
     },
     async ({ id }) => {

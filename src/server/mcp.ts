@@ -12,7 +12,9 @@ export function createMcpServer(context: AppContext) {
     version: SERVICE_VERSION
   });
 
-  registerAvenueAppResource(server, context.config);
+  if (context.config.APP_WIDGET_ENABLED) {
+    registerAvenueAppResource(server, context.config);
+  }
   registerTools(server, context);
 
   return server;
