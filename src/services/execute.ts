@@ -127,10 +127,26 @@ export class ExecuteService {
           throw new Error(`Unsupported changeType: ${cr.changeType}`);
       }
 
+      // Post-execution verification (P7): re-read the live entity and stamp
+      // verifiedAt. Non-fatal — a verification error never flips the apply to
+      // failed, since the write already succeeded downstream.
+      let verified: Record<string, unknown>;
+      try {
+        verified = await this.verifyChange(project.id, cr, applied);
+      } catch (verifyErr) {
+        verified = { ok: false, error: verifyErr instanceof Error ? verifyErr.message : String(verifyErr) };
+      }
+      const verifiedOk = verified["ok"] === true;
       await this.prisma.changeRequest.update({
         where: { id: cr.id },
-        data: { status: "applied", appliedAt: new Date(), diffPayload: applied as never }
+        data: {
+          status: "applied",
+          appliedAt: new Date(),
+          verifiedAt: verifiedOk ? new Date() : null,
+          diffPayload: { applied, verified } as never
+        }
       });
+      applied = { ...applied, verified };
       await log({ ok: true, applied });
       return { ok: true, changeRequestId: cr.id, applied };
     } catch (err) {
@@ -192,6 +208,52 @@ export class ExecuteService {
     if (ct === "rankmath_update_canonical" && !cap.canChangeCanonical) return deny("canChangeCanonical");
     if (ct === "rankmath_update_robots" && !cap.canChangeRobots) return deny("canChangeRobots");
     return null;
+  }
+
+  /**
+   * Re-read the live entity after an apply to confirm the change landed (P7).
+   * Returns a compact verification object stored in diffPayload.verified and
+   * used to decide whether to stamp verifiedAt.
+   */
+  private async verifyChange(
+    projectId: string,
+    cr: { changeType: string; targetEntityId: string | null; targetEntityType: string },
+    applied: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
+
+    if (
+      cr.changeType === "wordpress_create_post" ||
+      cr.changeType === "wordpress_create_post_with_elementor" ||
+      cr.changeType === "wordpress_update_post" ||
+      cr.changeType === "wordpress_update_page"
+    ) {
+      const id = parsePostId(applied["postId"] ?? cr.targetEntityId);
+      if (!id) return { ok: false, error: "No post id available to verify." };
+      const wp = await this.wpClient(projectId);
+      const post = await wp.getPost(id, type);
+      return {
+        ok: true,
+        kind: "wordpress_post",
+        postId: post.id,
+        status: post.status,
+        slug: post.slug,
+        title: post.title,
+        link: post.link,
+        hasContent: Boolean(post.content && post.content.length > 0),
+        featuredMediaId: post.featuredMediaId ?? null
+      };
+    }
+
+    if (cr.changeType.startsWith("rankmath_")) {
+      const id = parsePostId(cr.targetEntityId ?? applied["postId"]);
+      if (!id) return { ok: false, error: "No post id available to verify." };
+      const rm = await this.rankmathClient(projectId);
+      const meta = await rm.getPostMeta(id, type);
+      return { ok: true, kind: "rankmath_meta", meta };
+    }
+
+    return { ok: true, kind: "none", note: "Verification not implemented for this change type." };
   }
 
   private async wpClient(projectId: string): Promise<WordPressClient> {
@@ -265,9 +327,10 @@ export class ExecuteService {
       slug: p["slug"] as string | undefined,
       excerpt: p["excerpt"] as string | undefined,
       categories: (p["categories"] as number[]) ?? undefined,
-      tags: (p["tags"] as number[]) ?? undefined
+      tags: (p["tags"] as number[]) ?? undefined,
+      featured_media: typeof p["featured_media"] === "number" ? (p["featured_media"] as number) : undefined
     });
-    return { postId: created.id, link: created.link };
+    return { postId: created.id, link: created.link, status: created.status, slug: created.slug };
   }
 
   private async applyCreatePostElementor(project: { id: string }, cr: { afterPayload: unknown }): Promise<Record<string, unknown>> {

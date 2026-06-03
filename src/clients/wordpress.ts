@@ -149,37 +149,69 @@ export class WordPressClient {
   }
 
   // --- Media ---
+  /** Find an existing attachment by its slug (used for idempotent sideloading). */
+  async findMediaBySlug(slug: string): Promise<{ id: number; sourceUrl: string; altText: string } | null> {
+    if (!slug) return null;
+    const raw = await this.http.request<unknown[]>("GET", "/wp/v2/media", {
+      query: { slug, per_page: 1, context: "edit" }
+    });
+    const first = Array.isArray(raw) ? (raw[0] as Record<string, unknown> | undefined) : undefined;
+    if (!first || first["id"] === undefined) return null;
+    return {
+      id: Number(first["id"]),
+      sourceUrl: String(first["source_url"] ?? ""),
+      altText: String((first["alt_text"] as string) ?? "")
+    };
+  }
+
+  /**
+   * Sideload a remote image into the Media Library and return its local id + URL.
+   * Idempotent: derives a deterministic slug from `filename` and reuses an existing
+   * attachment with that slug instead of creating a duplicate. Always sets alt text
+   * so Elementor/RankMath/srcset pick it up. The local source_url is what callers
+   * must embed in content — never the external URL.
+   */
   async uploadMediaFromUrl(opts: {
     fileUrl: string;
     filename: string;
     altText?: string;
     mimeType?: string;
-  }): Promise<{ id: number; sourceUrl: string }> {
-    // Two-step: fetch the asset and POST it as multipart.
+    reuseExisting?: boolean;
+  }): Promise<{ id: number; sourceUrl: string; reused: boolean }> {
     assertPublicHttpUrl(opts.fileUrl);
+    const base = baseSlug(opts.filename);
+
+    if (opts.reuseExisting !== false && base) {
+      const existing = await this.findMediaBySlug(base);
+      if (existing) {
+        if (opts.altText && opts.altText !== existing.altText) {
+          await this.http.request("POST", `/wp/v2/media/${existing.id}`, { body: { alt_text: opts.altText } });
+        }
+        return { id: existing.id, sourceUrl: existing.sourceUrl, reused: true };
+      }
+    }
+
+    // Two-step: fetch the asset server-side, then POST it as a binary upload.
     const assetRes = await fetch(opts.fileUrl);
     if (!assetRes.ok) throw new Error(`Could not fetch media source: ${opts.fileUrl}`);
     const buf = Buffer.from(await assetRes.arrayBuffer());
-    const mime = opts.mimeType ?? assetRes.headers.get("content-type") ?? "application/octet-stream";
+    const mime = opts.mimeType ?? assetRes.headers.get("content-type") ?? "image/jpeg";
+    const filename = `${base || "image"}.${extFromMime(mime)}`;
 
-    const raw = await this.http.request<Record<string, unknown>>(
-      "POST",
-      "/wp/v2/media",
-      {
-        body: buf,
-        headers: {
-          "Content-Disposition": `attachment; filename="${opts.filename}"`,
-          "Content-Type": mime
-        }
+    const raw = await this.http.request<Record<string, unknown>>("POST", "/wp/v2/media", {
+      body: buf,
+      headers: {
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Type": mime
       }
-    );
+    });
     const id = Number(raw["id"]);
     const sourceUrl = String(raw["source_url"] ?? "");
 
     if (opts.altText) {
       await this.http.request("POST", `/wp/v2/media/${id}`, { body: { alt_text: opts.altText } });
     }
-    return { id, sourceUrl };
+    return { id, sourceUrl, reused: false };
   }
 
   // --- Health ---
@@ -246,4 +278,27 @@ function assertPublicHttpUrl(raw: string): void {
   if (blocked) {
     throw new Error(`Media source URL host is not allowed (private/loopback/metadata): ${host}`);
   }
+}
+
+/** Slugify a filename (strip path + extension, transliterate accents) for idempotent media lookups. */
+function baseSlug(filename: string): string {
+  const name = (filename.split(/[\\/]/).pop() ?? filename).replace(/\.[a-z0-9]{1,5}$/i, "");
+  return name
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+/** Map a content-type to a file extension WordPress will accept. */
+function extFromMime(mime: string): string {
+  const m = mime.toLowerCase();
+  if (m.includes("png")) return "png";
+  if (m.includes("webp")) return "webp";
+  if (m.includes("gif")) return "gif";
+  if (m.includes("avif")) return "avif";
+  if (m.includes("svg")) return "svg";
+  return "jpg";
 }
