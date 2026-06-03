@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { Logger } from "pino";
 import type { AppConfig } from "../config/env.js";
-import { WordPressClient } from "../clients/wordpress.js";
+import { WordPressClient, type WPUpdatePostInput } from "../clients/wordpress.js";
 import { RankMathClient } from "../clients/rankmath.js";
 import { ElementorAdapter, type ElementorBlock } from "../clients/elementor.js";
 import { CredentialsService } from "./credentials.js";
@@ -137,12 +137,16 @@ export class ExecuteService {
         verified = { ok: false, error: verifyErr instanceof Error ? verifyErr.message : String(verifyErr) };
       }
       const verifiedOk = verified["ok"] === true;
+      const verifiedTs = new Date();
+      // Surface verifiedAt INSIDE the block (so the tool caller sees it) and seal
+      // the ChangeRequest column only when verification actually passed (Bug B).
+      verified = { ...verified, verifiedAt: verifiedOk ? verifiedTs.toISOString() : null };
       await this.prisma.changeRequest.update({
         where: { id: cr.id },
         data: {
           status: "applied",
           appliedAt: new Date(),
-          verifiedAt: verifiedOk ? new Date() : null,
+          verifiedAt: verifiedOk ? verifiedTs : null,
           diffPayload: { applied, verified } as never
         }
       });
@@ -217,10 +221,11 @@ export class ExecuteService {
    */
   private async verifyChange(
     projectId: string,
-    cr: { changeType: string; targetEntityId: string | null; targetEntityType: string },
+    cr: { changeType: string; targetEntityId: string | null; targetEntityType: string; afterPayload: unknown },
     applied: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
+    const payload = (cr.afterPayload as Record<string, unknown>) ?? {};
 
     if (
       cr.changeType === "wordpress_create_post" ||
@@ -232,16 +237,46 @@ export class ExecuteService {
       if (!id) return { ok: false, error: "No post id available to verify." };
       const wp = await this.wpClient(projectId);
       const post = await wp.getPost(id, type);
+
+      let siteHost = "";
+      try {
+        siteHost = new URL(post.link).host;
+      } catch {
+        siteHost = "";
+      }
+      const contentImgs = classifyImages(post.content ?? "", siteHost);
+
+      const editMode = String(post.meta?.["_elementor_edit_mode"] ?? "");
+      const elementorData = String(post.meta?.["_elementor_data"] ?? "");
+      const elementorImgs =
+        editMode === "builder" ? classifyImages(elementorData, siteHost) : { local: 0, external: 0 };
+      const elementorInSync = editMode !== "builder" ? true : elementorData.length > 0 && elementorImgs.external === 0;
+
+      const reasons: string[] = [];
+      const requestedFeatured =
+        typeof payload["featured_media"] === "number" ? (payload["featured_media"] as number) : undefined;
+      const featuredMediaId = post.featuredMediaId ?? 0;
+      if (requestedFeatured !== undefined && featuredMediaId !== requestedFeatured) {
+        reasons.push(`featured_media requested ${requestedFeatured} but the post reports ${featuredMediaId}.`);
+      }
+      if (editMode === "builder" && !elementorInSync) {
+        reasons.push("Elementor _elementor_data still references external images or is empty (out of sync).");
+      }
+
       return {
-        ok: true,
+        ok: reasons.length === 0,
         kind: "wordpress_post",
         postId: post.id,
         status: post.status,
         slug: post.slug,
         title: post.title,
         link: post.link,
-        hasContent: Boolean(post.content && post.content.length > 0),
-        featuredMediaId: post.featuredMediaId ?? null
+        featuredMediaId,
+        imagesLocalCount: contentImgs.local,
+        imagesExternalCount: contentImgs.external,
+        elementorMode: editMode || "classic",
+        elementorInSync,
+        ...(reasons.length > 0 ? { reasons } : {})
       };
     }
 
@@ -391,24 +426,65 @@ export class ExecuteService {
     // ending in "page" must hit the pages endpoint, not posts.
     const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
     const before = await wp.getPost(id, type);
-    // Persist a rollback snapshot before mutating, so the change can be reverted.
+    // Persist a rollback snapshot before mutating, so the change can be reverted
+    // (include meta so a synced _elementor_data can also be rolled back).
     await this.prisma.changeRequest.update({
       where: { id: cr.id },
       data: {
         beforePayload: { title: before.title, content: before.content, status: before.status, slug: before.slug } as never,
-        rollbackPayload: { id, type, title: before.title, content: before.content, status: before.status, slug: before.slug } as never
+        rollbackPayload: {
+          id, type, title: before.title, content: before.content, status: before.status, slug: before.slug,
+          meta: before.meta ?? {}
+        } as never
       }
     });
-    const updated = await wp.updatePost({
+
+    const newContent = payload["content"] as string | undefined;
+    // Bug A: forward ALL supported fields. featured_media, excerpt, categories and
+    // tags were silently dropped, so the featured image never applied.
+    const update: WPUpdatePostInput = {
       id,
       type,
       title: payload["title"] as string | undefined,
-      content: payload["content"] as string | undefined,
+      content: newContent,
       status: payload["status"] as "draft" | "publish" | "pending" | "private" | undefined,
       slug: payload["slug"] as string | undefined,
-      excerpt: payload["excerpt"] as string | undefined
-    });
-    return { before: { title: before.title, content: before.content }, after: { id: updated.id, link: updated.link } };
+      excerpt: payload["excerpt"] as string | undefined,
+      categories: Array.isArray(payload["categories"]) ? (payload["categories"] as number[]) : undefined,
+      tags: Array.isArray(payload["tags"]) ? (payload["tags"] as number[]) : undefined,
+      featured_media: typeof payload["featured_media"] === "number" ? (payload["featured_media"] as number) : undefined
+    };
+
+    // Bug C.1: keep Elementor in sync. In builder mode the front renders
+    // _elementor_data, not post_content, so a content-only update leaves the live
+    // page (and RankMath's analysis) on the OLD tree. Inject the new HTML into the
+    // text-editor widget(s); the post update bumps post_modified so Elementor
+    // regenerates its cached CSS lazily on the next view.
+    let elementorSync: Record<string, unknown> = { attempted: false };
+    const editMode = String(before.meta?.["_elementor_edit_mode"] ?? "");
+    const currentData = before.meta?.["_elementor_data"];
+    if (editMode === "builder" && newContent && typeof currentData === "string" && currentData) {
+      const synced = syncElementorTextEditors(currentData, newContent);
+      elementorSync = { attempted: true, builder: true, textEditorsReplaced: synced.replaced };
+      if (synced.replaced > 0) {
+        update.meta = { ...(update.meta ?? {}), _elementor_data: synced.json };
+      } else {
+        elementorSync["note"] =
+          "No text-editor widget found in _elementor_data; full widget serialisation (C.2) needed for this layout.";
+      }
+    }
+
+    const updated = await wp.updatePost(update);
+    return {
+      before: { title: before.title },
+      after: {
+        id: updated.id,
+        link: updated.link,
+        status: updated.status,
+        featuredMediaId: updated.featuredMediaId ?? 0
+      },
+      elementorSync
+    };
   }
 
   private async applyUpdateFocusKeywords(
@@ -498,4 +574,56 @@ function parsePostId(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string" && /^\d+$/.test(v)) return Number(v);
   return null;
+}
+
+/**
+ * Replace the HTML of text-editor widgets in an Elementor data tree. The first
+ * text-editor receives the full new HTML; any others are emptied so the content
+ * consolidates there (Bug C.1, minimum-viable sync). Returns how many were found.
+ * Falls back to the original JSON untouched if it can't be parsed.
+ */
+function syncElementorTextEditors(dataJson: string, newHtml: string): { json: string; replaced: number } {
+  let tree: unknown;
+  try {
+    tree = JSON.parse(dataJson);
+  } catch {
+    return { json: dataJson, replaced: 0 };
+  }
+  let replaced = 0;
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (node && typeof node === "object") {
+      const n = node as Record<string, unknown>;
+      if (n["elType"] === "widget" && n["widgetType"] === "text-editor") {
+        const settings = (n["settings"] as Record<string, unknown> | undefined) ?? {};
+        replaced += 1;
+        settings["editor"] = replaced === 1 ? newHtml : "";
+        n["settings"] = settings;
+      }
+      if (Array.isArray(n["elements"])) (n["elements"] as unknown[]).forEach(visit);
+    }
+  };
+  visit(tree);
+  return { json: JSON.stringify(tree), replaced };
+}
+
+/** Count <img> tags pointing at the site host (local) vs other hosts (external). */
+function classifyImages(html: string, siteHost: string): { local: number; external: number } {
+  const srcs = [...html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)].map((m) => m[1]);
+  let local = 0;
+  let external = 0;
+  for (const src of srcs) {
+    let host = "";
+    try {
+      host = new URL(src, `https://${siteHost || "local"}/`).host;
+    } catch {
+      host = "";
+    }
+    if (!host || (siteHost && host === siteHost)) local += 1;
+    else external += 1;
+  }
+  return { local, external };
 }

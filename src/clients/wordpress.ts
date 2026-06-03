@@ -61,6 +61,7 @@ export interface WPUpdatePostInput {
   excerpt?: string;
   categories?: number[];
   tags?: number[];
+  featured_media?: number;
   meta?: Record<string, unknown>;
 }
 
