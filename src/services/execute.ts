@@ -103,6 +103,9 @@ export class ExecuteService {
         case "wordpress_update_page":
           applied = await this.applyUpdatePost(project, cr);
           break;
+        case "wordpress_reset_elementor":
+          applied = await this.applyResetElementor(project, cr);
+          break;
         case "rankmath_update_focus_keywords":
           applied = await this.applyUpdateFocusKeywords(project, cr);
           break;
@@ -231,7 +234,8 @@ export class ExecuteService {
       cr.changeType === "wordpress_create_post" ||
       cr.changeType === "wordpress_create_post_with_elementor" ||
       cr.changeType === "wordpress_update_post" ||
-      cr.changeType === "wordpress_update_page"
+      cr.changeType === "wordpress_update_page" ||
+      cr.changeType === "wordpress_reset_elementor"
     ) {
       const id = parsePostId(applied["postId"] ?? cr.targetEntityId);
       if (!id) return { ok: false, error: "No post id available to verify." };
@@ -263,6 +267,43 @@ export class ExecuteService {
         reasons.push("Elementor _elementor_data still references external images or is empty (out of sync).");
       }
 
+      // Render-based verification: the DB can be correct while Elementor serves a
+      // stale cached render. Fetch the LIVE HTML (authenticated, so private posts
+      // render) and HEAD every /wp-content/uploads/ image to confirm it loads.
+      let renderStatus = 0;
+      let renderedOk = false;
+      let imagesRendered200 = 0;
+      let imagesBroken = 0;
+      try {
+        const rendered = await wp.getRenderedHtml(post.link);
+        renderStatus = rendered.status;
+        renderedOk = rendered.status >= 200 && rendered.status < 400 && rendered.html.length > 0;
+        const uploadSrcs = [
+          ...new Set(
+            [...rendered.html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)]
+              .map((m) => m[1])
+              .filter((src) => src.includes("/wp-content/uploads/"))
+          )
+        ].slice(0, 12);
+        for (const src of uploadSrcs) {
+          let abs = src;
+          try {
+            abs = new URL(src, post.link).toString();
+          } catch {
+            abs = src;
+          }
+          const status = await wp.headStatus(abs);
+          if (status >= 200 && status < 400) imagesRendered200 += 1;
+          else imagesBroken += 1;
+        }
+      } catch {
+        renderedOk = false;
+      }
+      if (!renderedOk) reasons.push(`Live render check failed (HTTP ${renderStatus}).`);
+      if (imagesBroken > 0) {
+        reasons.push(`${imagesBroken} rendered image(s) under /wp-content/uploads/ did not return HTTP 200.`);
+      }
+
       return {
         ok: reasons.length === 0,
         kind: "wordpress_post",
@@ -274,8 +315,12 @@ export class ExecuteService {
         featuredMediaId,
         imagesLocalCount: contentImgs.local,
         imagesExternalCount: contentImgs.external,
-        elementorMode: editMode || "classic",
+        elementorEditMode: editMode || "",
         elementorInSync,
+        renderStatus,
+        renderedOk,
+        imagesRendered200,
+        imagesBroken,
         ...(reasons.length > 0 ? { reasons } : {})
       };
     }
@@ -485,6 +530,36 @@ export class ExecuteService {
       },
       elementorSync
     };
+  }
+
+  /**
+   * Strategy 1 (Elementor unbind): empty _elementor_edit_mode / _elementor_data so
+   * WordPress stops rendering the (stale, cached) builder tree and instead renders
+   * the clean post_content through the theme / Theme Builder Single template. This
+   * sidesteps Elementor's internal element cache, which a REST data write can't bust.
+   */
+  private async applyResetElementor(
+    project: { id: string },
+    cr: { id: string; targetEntityId: string | null; targetEntityType: string }
+  ): Promise<Record<string, unknown>> {
+    const wp = await this.wpClient(project.id);
+    const id = parsePostId(cr.targetEntityId);
+    if (!id) throw new Error("targetEntityId required for Elementor reset.");
+    const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
+    const before = await wp.getPost(id, type);
+    const prevMode = String(before.meta?.["_elementor_edit_mode"] ?? "");
+    const prevData =
+      typeof before.meta?.["_elementor_data"] === "string" ? (before.meta["_elementor_data"] as string) : "";
+    // Snapshot the Elementor meta so the unbind can be rolled back.
+    await this.prisma.changeRequest.update({
+      where: { id: cr.id },
+      data: {
+        beforePayload: { editMode: prevMode } as never,
+        rollbackPayload: { id, type, meta: { _elementor_edit_mode: prevMode, _elementor_data: prevData } } as never
+      }
+    });
+    const updated = await wp.updatePost({ id, type, meta: { _elementor_data: "", _elementor_edit_mode: "" } });
+    return { postId: updated.id, link: updated.link, unboundElementor: true, previousEditMode: prevMode };
   }
 
   private async applyUpdateFocusKeywords(

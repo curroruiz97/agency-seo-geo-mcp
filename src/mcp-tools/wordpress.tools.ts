@@ -282,6 +282,24 @@ export function registerWordPressTools(server: McpServer, context: AppContext) {
   );
 
   server.tool(
+    "reset_post_elementor",
+    "Desvincula una entrada/pagina del builder de Elementor (vacia _elementor_data y _elementor_edit_mode) para que se renderice con post_content limpio a traves de la plantilla del tema o Theme Builder, evitando el render cacheado/stale de Elementor. Mantiene el post_content y la imagen destacada. Crea una propuesta (propose -> approve -> execute) y verifica el render en vivo.",
+    { site_id: siteId(), post_id: z.string().min(1), type: z.enum(["post", "page"]).optional().default("post") },
+    async ({ site_id, post_id, type }) =>
+      jsonToolResponse(
+        await createProposedChange(context, {
+          siteId: site_id,
+          changeType: "wordpress_reset_elementor",
+          targetEntityType: type === "page" ? "wordpress_page" : "wordpress_post",
+          targetEntityId: post_id,
+          riskLevel: "medium",
+          afterPayload: { post_id, type },
+          reason: "Requested through MCP reset_post_elementor (unbind Elementor builder)."
+        })
+      )
+  );
+
+  server.tool(
     "upload_media",
     "Crea una propuesta interna para subir un medio a WordPress. Para subir imagenes de inmediato y obtener la URL local, usa sideload_media en su lugar.",
     {

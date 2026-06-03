@@ -67,12 +67,13 @@ export interface WPUpdatePostInput {
 
 export class WordPressClient {
   private http: HttpClient;
+  private readonly authHeader: string;
 
   constructor(opts: WordPressClientOptions) {
-    const authToken = Buffer.from(`${opts.username}:${opts.applicationPassword}`).toString("base64");
+    this.authHeader = `Basic ${Buffer.from(`${opts.username}:${opts.applicationPassword}`).toString("base64")}`;
     this.http = new HttpClient({
       baseUrl: `${opts.baseUrl.replace(/\/$/, "")}/wp-json`,
-      defaultHeaders: { Authorization: `Basic ${authToken}` },
+      defaultHeaders: { Authorization: this.authHeader },
       rateLimitPerMinute: opts.rateLimitPerMinute ?? 60,
       logger: opts.logger
     });
@@ -213,6 +214,32 @@ export class WordPressClient {
       await this.http.request("POST", `/wp/v2/media/${id}`, { body: { alt_text: opts.altText } });
     }
     return { id, sourceUrl, reused: false };
+  }
+
+  // --- Front-end render (for render-based verification) ---
+  /**
+   * Fetch the rendered front-end HTML of a URL using the Application Password,
+   * so private/draft posts render as the authenticated user. Used to verify the
+   * LIVE output, because the DB can be correct while Elementor's cache serves
+   * stale HTML.
+   */
+  async getRenderedHtml(url: string): Promise<{ status: number; html: string }> {
+    const res = await fetch(url, {
+      headers: { Authorization: this.authHeader, Accept: "text/html,application/xhtml+xml" },
+      redirect: "follow"
+    });
+    const html = await res.text();
+    return { status: res.status, html };
+  }
+
+  /** HEAD a URL (authenticated) and return its HTTP status, or 0 on transport error. */
+  async headStatus(url: string): Promise<number> {
+    try {
+      const res = await fetch(url, { method: "HEAD", headers: { Authorization: this.authHeader } });
+      return res.status;
+    } catch {
+      return 0;
+    }
   }
 
   // --- Health ---

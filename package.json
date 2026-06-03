@@ -1,6 +1,6 @@
 {
   "name": "agency-seo-geo-mcp",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Agency SEO/GEO MCP server for safe WordPress, Rank Math and SE Ranking orchestration.",
   "type": "module",
   "private": true,
