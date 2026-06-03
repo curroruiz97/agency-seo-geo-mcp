@@ -3,15 +3,46 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AppContext } from "../app/appContext.js";
 import { createProposedChange, integrationNotConfigured, optionalText, siteId } from "./actionHelpers.js";
 import { jsonToolResponse } from "./response.js";
+import { RankMathClient } from "../clients/rankmath.js";
 
 const objectType = z.enum(["post", "page"]).describe("WordPress object type.");
+
+/** Build a RankMath client for a project from its stored WordPress credentials. */
+async function buildRankMathClient(context: AppContext, projectId: string): Promise<RankMathClient | null> {
+  if (!context.prisma || !context.services) return null;
+  const project = await context.prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) return null;
+  const creds = await context.services.credentials.getWordPress(projectId);
+  if (!creds) return null;
+  return new RankMathClient({
+    baseUrl: project.wordpressUrl,
+    username: creds.username,
+    applicationPassword: creds.applicationPassword,
+    logger: context.logger
+  });
+}
 
 export function registerRankMathTools(server: McpServer, context: AppContext) {
   server.tool(
     "get_rankmath_metadata",
     "Lee title SEO, meta description, focus keywords y metadatos Rank Math para un post o pagina.",
     { site_id: siteId(), object_type: objectType, object_id: z.string().min(1) },
-    async (input) => jsonToolResponse(integrationNotConfigured(context, "rank_math", "get_rankmath_metadata", input))
+    async ({ site_id, object_type, object_id }) => {
+      const rm = await buildRankMathClient(context, site_id);
+      if (!rm) {
+        return jsonToolResponse(integrationNotConfigured(context, "rank_math", "get_rankmath_metadata", { site_id, object_type, object_id }));
+      }
+      const postId = Number(object_id);
+      if (!Number.isFinite(postId)) {
+        return jsonToolResponse({ ok: false, error: "object_id must be a numeric WordPress post/page id." });
+      }
+      try {
+        const meta = await rm.getPostMeta(postId, object_type);
+        return jsonToolResponse({ ok: true, meta });
+      } catch (err) {
+        return jsonToolResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
   );
 
   server.tool(
@@ -44,7 +75,22 @@ export function registerRankMathTools(server: McpServer, context: AppContext) {
     "get_focus_keywords",
     "Lee las focus keywords de Rank Math para un post o pagina.",
     { site_id: siteId(), object_type: objectType, object_id: z.string().min(1) },
-    async (input) => jsonToolResponse(integrationNotConfigured(context, "rank_math", "get_focus_keywords", input))
+    async ({ site_id, object_type, object_id }) => {
+      const rm = await buildRankMathClient(context, site_id);
+      if (!rm) {
+        return jsonToolResponse(integrationNotConfigured(context, "rank_math", "get_focus_keywords", { site_id, object_type, object_id }));
+      }
+      const postId = Number(object_id);
+      if (!Number.isFinite(postId)) {
+        return jsonToolResponse({ ok: false, error: "object_id must be a numeric WordPress post/page id." });
+      }
+      try {
+        const meta = await rm.getPostMeta(postId, object_type);
+        return jsonToolResponse({ ok: true, focusKeyword: meta.focusKeyword, secondaryKeywords: meta.secondaryKeywords });
+      } catch (err) {
+        return jsonToolResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
   );
 
   server.tool(

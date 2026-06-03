@@ -1,5 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import { z } from "zod";
+
+// override: true so values in .env always win over a stale process environment
+// (e.g. PM2 reusing a saved env on restart). Without this, changing READ_ONLY_MODE
+// in .env had no effect until forcing `pm2 restart --update-env`.
+dotenv.config({ override: true });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

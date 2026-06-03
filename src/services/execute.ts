@@ -226,16 +226,23 @@ export class ExecuteService {
     const type = cr.targetEntityType.endsWith("page") ? "page" : "post";
 
     const before = await rm.getPostMeta(postId, type);
-    const schemaType = payload["schemaType"] as string | undefined;
-    const schemaPayload = payload["schemaPayload"] as Record<string, unknown> | undefined;
-    const next = await rm.updatePostMeta({
-      postId,
-      metaTitle: payload["metaTitle"] as string | undefined,
-      metaDescription: payload["metaDescription"] as string | undefined,
-      focusKeyword: payload["focusKeyword"] as string | undefined,
-      secondaryKeywords: payload["secondaryKeywords"] as string[] | undefined,
-      schemaType
-    }, type);
+    // Accept BOTH the update_rankmath_metadata tool payload (snake_case:
+    // seo_title, meta_description, focus_keywords[], schema_type) and the
+    // strategy payload (camelCase: metaTitle, focusKeyword...). The earlier
+    // mismatch is why writes returned ok:true but applied nothing.
+    const focusList = Array.isArray(payload["focus_keywords"])
+      ? (payload["focus_keywords"] as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+      : undefined;
+    const metaTitle = (payload["seo_title"] ?? payload["metaTitle"]) as string | undefined;
+    const metaDescription = (payload["meta_description"] ?? payload["metaDescription"]) as string | undefined;
+    const focusKeyword = focusList ? focusList[0] : (payload["focusKeyword"] as string | undefined);
+    const secondaryKeywords = focusList ? focusList.slice(1) : (payload["secondaryKeywords"] as string[] | undefined);
+    const schemaType = (payload["schema_type"] ?? payload["schemaType"]) as string | undefined;
+    const schemaPayload = (payload["schema_payload"] ?? payload["schemaPayload"]) as Record<string, unknown> | undefined;
+    const next = await rm.updatePostMeta(
+      { postId, metaTitle, metaDescription, focusKeyword, secondaryKeywords, schemaType },
+      type
+    );
     // RankMath stores schema objects under their own meta keys (rank_math_schema_<Type>),
     // written through the mu-plugin bridge rather than the standard meta surface.
     if (schemaType && schemaPayload) {
