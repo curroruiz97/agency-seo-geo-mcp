@@ -86,8 +86,20 @@ export class HttpClient {
 
     const fetchInit: RequestInit = { method, headers };
     if (init?.body !== undefined) {
-      headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
-      fetchInit.body = typeof init.body === "string" ? init.body : JSON.stringify(init.body);
+      const body = init.body;
+      // Binary bodies (e.g. media uploads) MUST be passed through untouched.
+      // JSON.stringify(Buffer) yields '{"type":"Buffer","data":[...]}', which the
+      // server then rejects as an invalid/zero-byte file. The caller is responsible
+      // for setting Content-Type (e.g. image/jpeg) on binary uploads.
+      if (Buffer.isBuffer(body) || body instanceof Uint8Array || body instanceof ArrayBuffer) {
+        fetchInit.body = body as BodyInit;
+      } else if (typeof body === "string") {
+        headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
+        fetchInit.body = body;
+      } else {
+        headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
+        fetchInit.body = JSON.stringify(body);
+      }
     }
 
     const maxRetries = this.options.maxRetries ?? 3;
