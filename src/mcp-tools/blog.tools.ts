@@ -1,8 +1,9 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AppContext } from "../app/appContext.js";
-import { optionalText, siteId } from "./actionHelpers.js";
+import { integrationNotConfigured, optionalText, siteId } from "./actionHelpers.js";
 import { jsonToolResponse } from "./response.js";
+import { buildWordPressClient } from "./wordpress.tools.js";
 
 /**
  * The 14-point RankMath checklist that scored 95/100 on post 3551. Embedded so
@@ -60,23 +61,78 @@ function buildConfigView(project: { sector: string | null; language: string; tar
   };
 }
 
+type BlogConfigView = ReturnType<typeof buildConfigView>;
+
+/** Map the WP plugin's saved option (snake_case) to the config view shape. */
+function normalizeBridgeConfig(b: Record<string, unknown>): BlogConfigView {
+  const num = (v: unknown): number | null => {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
+    return null;
+  };
+  const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
+  const seeds = Array.isArray(b["seed_keywords"])
+    ? (b["seed_keywords"] as unknown[]).map((s) => String(s).trim()).filter(Boolean)
+    : typeof b["seed_keywords"] === "string"
+      ? String(b["seed_keywords"]).split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)
+      : [];
+  const catId = num(b["default_category_id"]);
+  const authId = num(b["default_author_id"]);
+  const tplId = num(b["template_id"]);
+  return {
+    sector: str(b["sector"]),
+    seedKeywords: seeds,
+    language: typeof b["language"] === "string" && b["language"] ? String(b["language"]) : "es-ES",
+    city: str(b["city"]),
+    defaultCategoryId: catId && catId > 0 ? catId : null,
+    defaultAuthorId: authId && authId > 0 ? authId : null,
+    renderMode: typeof b["render_mode"] === "string" && b["render_mode"] ? String(b["render_mode"]) : "theme-builder-single",
+    template: { id: tplId && tplId > 0 ? tplId : null, type: str(b["template_type"]), name: str(b["template_name"]) },
+    minImages: num(b["min_images"]) ?? 4,
+    imageSource: str(b["image_source"]),
+    notes: str(b["notes"])
+  };
+}
+
+/**
+ * Resolve a site's blog config, PLUGIN FIRST (per-site source of truth set in
+ * wp-admin), then the MCP database as fallback (configured via set_blog_config).
+ */
+async function resolveBlogConfig(
+  context: AppContext,
+  projectId: string
+): Promise<{ configured: boolean; source: "wp_plugin" | "mcp_db" | null; config: BlogConfigView | null }> {
+  const wp = await buildWordPressClient(context, projectId);
+  if (wp) {
+    const bridge = await wp.getBridgeBlogConfig();
+    if (bridge && bridge["configured"] === true) {
+      return { configured: true, source: "wp_plugin", config: normalizeBridgeConfig(bridge) };
+    }
+  }
+  if (context.prisma) {
+    const project = await context.prisma.project.findUnique({ where: { id: projectId }, include: { blogConfig: true } });
+    if (project?.blogConfig) {
+      return { configured: true, source: "mcp_db", config: buildConfigView(project, project.blogConfig) };
+    }
+  }
+  return { configured: false, source: null, config: null };
+}
+
 export function registerBlogTools(server: McpServer, context: AppContext) {
   server.tool(
     "get_blog_config",
-    "Lee la configuracion de Blog Automation de un sitio (sector, idioma, ciudad, categoria por defecto, modo de render, plantilla, politica de imagenes). Si no esta configurada devuelve configured:false.",
+    "Lee la configuracion de Blog Automation de un sitio (plantilla, sector, idioma, ciudad, categoria por defecto, modo de render, politica de imagenes). Prioriza la config del plugin en wp-admin (por-web) y usa la BD del MCP como fallback. Devuelve configured:false si no hay ninguna.",
     { site_id: siteId() },
     async ({ site_id }) => {
-      if (!context.prisma) return jsonToolResponse({ configured: false, error: "database_not_configured" });
-      const project = await context.prisma.project.findUnique({ where: { id: site_id }, include: { blogConfig: true } });
-      if (!project) return jsonToolResponse({ configured: false, error: "project_not_found", site_id });
-      if (!project.blogConfig) {
+      const resolved = await resolveBlogConfig(context, site_id);
+      if (!resolved.configured) {
         return jsonToolResponse({
           configured: false,
           site_id,
-          message: "No hay configuracion de blog. Usa set_blog_config para definir sector, idioma, categoria por defecto y modo de render."
+          message: "No hay configuracion de blog. Configurala en wp-admin (Ajustes -> Avenue Blog) o con set_blog_config."
         });
       }
-      return jsonToolResponse({ configured: true, site_id, config: buildConfigView(project, project.blogConfig) });
+      return jsonToolResponse({ configured: true, site_id, source: resolved.source, config: resolved.config });
     }
   );
 
@@ -187,24 +243,37 @@ export function registerBlogTools(server: McpServer, context: AppContext) {
   );
 
   server.tool(
+    "list_blog_templates",
+    "Lista las plantillas de Elementor del sitio (id, nombre, tipo) para elegir cual usa el blog. Requiere el mu-plugin Avenue MCP Blog Automation instalado en la web.",
+    { site_id: siteId() },
+    async ({ site_id }) => {
+      const wp = await buildWordPressClient(context, site_id);
+      if (!wp) return jsonToolResponse(integrationNotConfigured(context, "wordpress", "list_blog_templates", { site_id }));
+      try {
+        const templates = await wp.listElementorTemplates();
+        return jsonToolResponse({ ok: true, site_id, count: templates.length, templates });
+      } catch (err) {
+        return jsonToolResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          hint: "Instala el mu-plugin avenue-mcp-blog-automation.php en wp-content/mu-plugins/ de la web."
+        });
+      }
+    }
+  );
+
+  server.tool(
     "get_blog_playbook",
     "Devuelve la config del sitio + el checklist RankMath de 14 puntos (el que dio 95/100) + los pasos del pipeline para crear un articulo de calidad. LEE ESTO ANTES de redactar 'haz un articulo para {sitio}'.",
     { site_id: siteId() },
     async ({ site_id }) => {
-      let config: ReturnType<typeof buildConfigView> | null = null;
-      let configured = false;
-      if (context.prisma) {
-        const project = await context.prisma.project.findUnique({ where: { id: site_id }, include: { blogConfig: true } });
-        if (project?.blogConfig) {
-          configured = true;
-          config = buildConfigView(project, project.blogConfig);
-        }
-      }
+      const resolved = await resolveBlogConfig(context, site_id);
       return jsonToolResponse({
         site_id,
-        configured,
-        config,
-        configHint: configured ? undefined : "Sin config de blog: usa set_blog_config antes de generar (sector, idioma, categoria, render_mode).",
+        configured: resolved.configured,
+        configSource: resolved.source,
+        config: resolved.config,
+        configHint: resolved.configured ? undefined : "Sin config de blog: configurala en wp-admin (Ajustes -> Avenue Blog) o con set_blog_config antes de generar.",
         keywordResearch:
           "Usa el conector de SE Ranking (MCP aparte) para volumen + dificultad + keywords relacionadas del sector. No necesita proyecto creado.",
         antiCannibalization:

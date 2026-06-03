@@ -233,6 +233,26 @@ export class WordPressClient {
     }
   }
 
+  // --- Avenue MCP Bridge: per-site Blog Automation config ---
+  /** Read the Blog Automation config from the bridge mu-plugin. Returns null if it's not installed. */
+  async getBridgeBlogConfig(): Promise<Record<string, unknown> | null> {
+    try {
+      const raw = await this.http.request<Record<string, unknown>>("GET", "/avenue-mcp/v1/blog-config");
+      return raw && typeof raw === "object" ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** List the site's Elementor templates (via the bridge mu-plugin) for blog config. */
+  async listElementorTemplates(): Promise<Array<{ id: number; name: string; type: string }>> {
+    const raw = await this.http.request<unknown[]>("GET", "/avenue-mcp/v1/elementor-templates");
+    return (raw ?? []).map((it) => {
+      const o = (it as Record<string, unknown>) ?? {};
+      return { id: Number(o["id"]), name: String(o["name"] ?? ""), type: String(o["type"] ?? "") };
+    });
+  }
+
   // --- Health ---
   async ping(): Promise<{ ok: boolean; version?: string }> {
     const raw = await this.http.request<Record<string, unknown>>("GET", "/");

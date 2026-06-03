@@ -6,7 +6,7 @@ import { jsonToolResponse } from "./response.js";
 import { WordPressClient } from "../clients/wordpress.js";
 
 /** Build a WordPress client for a project from its stored Application Password. */
-async function buildWordPressClient(context: AppContext, projectId: string): Promise<WordPressClient | null> {
+export async function buildWordPressClient(context: AppContext, projectId: string): Promise<WordPressClient | null> {
   if (!context.prisma || !context.services) return null;
   const project = await context.prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return null;

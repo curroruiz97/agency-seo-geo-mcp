@@ -7,7 +7,7 @@ describe("health payload", () => {
 
     expect(payload.status).toBe("ok");
     expect(payload.service).toBe("agency-seo-geo-mcp");
-    expect(payload.version).toBe("0.7.0");
+    expect(payload.version).toBe("0.8.0");
     expect(payload.readOnly).toBe(true);
     expect(Date.parse(payload.timestamp)).not.toBeNaN();
   });
