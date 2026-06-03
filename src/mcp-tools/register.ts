@@ -47,7 +47,7 @@ const readOnlyPrefixes = ["get_", "list_", "gsc_get_", "gsc_list_", "ga_get_", "
 const readOnlyNames = new Set([
   "ping", "get_server_status", "list_projects", "list_sites", "search", "fetch",
   "list_change_requests", "list_opportunities", "list_extraction_runs",
-  "check_site_health", "check_all_sites_health"
+  "check_site_health", "check_all_sites_health", "validate_article"
 ]);
 
 // Tools that perform real, hard-to-reverse writes on external systems.
