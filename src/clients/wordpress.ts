@@ -30,6 +30,7 @@ export interface WPPostSummary {
 
 export interface WPPostFull extends WPPostSummary {
   content: string;
+  contentRendered?: string;
   excerpt: string;
   meta?: Record<string, unknown>;
   categories?: number[];
@@ -216,21 +217,11 @@ export class WordPressClient {
     return { id, sourceUrl, reused: false };
   }
 
-  // --- Front-end render (for render-based verification) ---
-  /**
-   * Fetch the rendered front-end HTML of a URL using the Application Password,
-   * so private/draft posts render as the authenticated user. Used to verify the
-   * LIVE output, because the DB can be correct while Elementor's cache serves
-   * stale HTML.
-   */
-  async getRenderedHtml(url: string): Promise<{ status: number; html: string }> {
-    const res = await fetch(url, {
-      headers: { Authorization: this.authHeader, Accept: "text/html,application/xhtml+xml" },
-      redirect: "follow"
-    });
-    const html = await res.text();
-    return { status: res.status, html };
-  }
+  // --- Render verification helpers ---
+  // NOTE: Application Passwords authenticate REST/XML-RPC requests only, NOT
+  // front-end page loads, so a GET to a private/draft post's permalink returns
+  // 404. Render verification therefore uses the REST content.rendered (authenticated,
+  // applies the_content()) plus a public HEAD on each media file below.
 
   /** HEAD a URL (authenticated) and return its HTTP status, or 0 on transport error. */
   async headStatus(url: string): Promise<number> {
@@ -271,6 +262,7 @@ function toFull(raw: Record<string, unknown>): WPPostFull {
   return {
     ...summary,
     content: typeof content === "string" ? content : String(content?.raw ?? content?.rendered ?? ""),
+    contentRendered: typeof content === "string" ? content : String(content?.rendered ?? content?.raw ?? ""),
     excerpt: typeof excerpt === "string" ? excerpt : String(excerpt?.raw ?? excerpt?.rendered ?? ""),
     meta: (raw["meta"] as Record<string, unknown>) ?? {},
     categories: Array.isArray(raw["categories"]) ? (raw["categories"] as number[]) : [],

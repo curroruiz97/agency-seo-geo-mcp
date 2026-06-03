@@ -267,41 +267,41 @@ export class ExecuteService {
         reasons.push("Elementor _elementor_data still references external images or is empty (out of sync).");
       }
 
-      // Render-based verification: the DB can be correct while Elementor serves a
-      // stale cached render. Fetch the LIVE HTML (authenticated, so private posts
-      // render) and HEAD every /wp-content/uploads/ image to confirm it loads.
-      let renderStatus = 0;
-      let renderedOk = false;
+      // Render-based verification via the REST-rendered content (the_content applied).
+      // Application Passwords authenticate REST/XML-RPC only — NOT front-end page
+      // loads — so fetching a private/draft post's permalink returns 404 (the old
+      // false negative). content.rendered IS authenticated and reflects the_content().
+      // Media files under /wp-content/uploads/ are public, so a HEAD confirms they load.
+      const renderSource = "rest_content_rendered";
+      const rendered = post.contentRendered ?? post.content ?? "";
+      const renderedOk = rendered.trim().length > 0;
+      const renderedImgs = classifyImages(rendered, siteHost);
       let imagesRendered200 = 0;
       let imagesBroken = 0;
-      try {
-        const rendered = await wp.getRenderedHtml(post.link);
-        renderStatus = rendered.status;
-        renderedOk = rendered.status >= 200 && rendered.status < 400 && rendered.html.length > 0;
-        const uploadSrcs = [
-          ...new Set(
-            [...rendered.html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)]
-              .map((m) => m[1])
-              .filter((src) => src.includes("/wp-content/uploads/"))
-          )
-        ].slice(0, 12);
-        for (const src of uploadSrcs) {
-          let abs = src;
-          try {
-            abs = new URL(src, post.link).toString();
-          } catch {
-            abs = src;
-          }
-          const status = await wp.headStatus(abs);
-          if (status >= 200 && status < 400) imagesRendered200 += 1;
-          else imagesBroken += 1;
+      const uploadSrcs = [
+        ...new Set(
+          [...rendered.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)]
+            .map((m) => m[1])
+            .filter((src) => src.includes("/wp-content/uploads/"))
+        )
+      ].slice(0, 12);
+      for (const src of uploadSrcs) {
+        let abs = src;
+        try {
+          abs = new URL(src, post.link).toString();
+        } catch {
+          abs = src;
         }
-      } catch {
-        renderedOk = false;
+        const status = await wp.headStatus(abs);
+        if (status >= 200 && status < 400) imagesRendered200 += 1;
+        else imagesBroken += 1;
       }
-      if (!renderedOk) reasons.push(`Live render check failed (HTTP ${renderStatus}).`);
+      if (!renderedOk) reasons.push("Rendered content (content.rendered) is empty.");
       if (imagesBroken > 0) {
         reasons.push(`${imagesBroken} rendered image(s) under /wp-content/uploads/ did not return HTTP 200.`);
+      }
+      if (renderedImgs.external > 0) {
+        reasons.push(`${renderedImgs.external} rendered image(s) point to an external host.`);
       }
 
       return {
@@ -317,10 +317,11 @@ export class ExecuteService {
         imagesExternalCount: contentImgs.external,
         elementorEditMode: editMode || "",
         elementorInSync,
-        renderStatus,
+        renderSource,
         renderedOk,
         imagesRendered200,
         imagesBroken,
+        renderedExternalImages: renderedImgs.external,
         ...(reasons.length > 0 ? { reasons } : {})
       };
     }
